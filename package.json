@@ -1,0 +1,19 @@
+{
+  "name": "actjs",
+  "version": "0.2.0",
+  "description": "A small JavaScript actor framework with optimistic-concurrency transactions backed by Redis.",
+  "type": "module",
+  "main": "main.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node main.js",
+    "demo": "./demo.bash"
+  },
+  "dependencies": {
+    "express": "^5.0.1",
+    "multer": "^2.0.0",
+    "redis": "^4.7.0"
+  }
+}

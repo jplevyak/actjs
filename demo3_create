@@ -1,0 +1,4 @@
+let Gamma = await gact.loadClass("Gamma");
+let g = new Gamma(gact, "demo3_g");
+g.g = "g";
+return [g.actor_id];

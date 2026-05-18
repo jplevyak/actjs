@@ -1,0 +1,4 @@
+let g = await gact.load("demo3_g");
+let g_g = g.g;
+g.g = "h";
+return [g_g, g.g];

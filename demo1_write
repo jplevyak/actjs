@@ -1,0 +1,4 @@
+let c = await gact.load("demo1_c");
+let d = await c.d;
+d.d = "e";
+return d.d;
