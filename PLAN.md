@@ -9,21 +9,21 @@ versioned actor backend suitable as the server for a Svelte/React app.
 The plan below treats these as settled. They are recorded here so the
 phase text doesn't keep re-justifying them.
 
-| Decision                         | Choice                                                                     |
-| -------------------------------- | -------------------------------------------------------------------------- |
-| Core language                    | TypeScript everywhere (strict), ESM only                                   |
-| Deployment shape                 | Self-hosted library (single-tenant default; trust your own classes)        |
-| Concurrency model                | Hybrid — single-writer mailbox per actor; opt-in event sourcing per class  |
-| Wire protocol                    | URL-versioned REST + JSON-RPC 2.0 over WebSocket; SSE fallback             |
-| Client typing                    | Generated `.d.ts` from class TS source; OpenAPI from Fastify routes        |
-| Sandbox                          | None; curated `actjs` host bridge — classes run in the host process        |
-| Host parameter name              | `actjs` (rename of legacy `gact`); interface type `ActjsHost`              |
-| Storage                          | Valkey (hot) + Postgres (source of truth: log, snapshots, classes)         |
-| Cluster                          | Single-node v1; placement/fencing hooks kept clean for a later v2          |
-| HTTP framework                   | Fastify                                                                    |
-| Authoring language               | TypeScript only at publish; server transpiles for execution                |
-| Version pinning per actor        | Sticky by default; `floating: true` opt-in per class                       |
-| Real-time delta format           | JSON Patch (RFC 6902) for SWM actors; raw event stream for ES actors       |
+| Decision                  | Choice                                                                    |
+| ------------------------- | ------------------------------------------------------------------------- |
+| Core language             | TypeScript everywhere (strict), ESM only                                  |
+| Deployment shape          | Self-hosted library (single-tenant default; trust your own classes)       |
+| Concurrency model         | Hybrid — single-writer mailbox per actor; opt-in event sourcing per class |
+| Wire protocol             | URL-versioned REST + JSON-RPC 2.0 over WebSocket; SSE fallback            |
+| Client typing             | Generated `.d.ts` from class TS source; OpenAPI from Fastify routes       |
+| Sandbox                   | None; curated `actjs` host bridge — classes run in the host process       |
+| Host parameter name       | `actjs` (rename of legacy `gact`); interface type `ActjsHost`             |
+| Storage                   | Valkey (hot) + Postgres (source of truth: log, snapshots, classes)        |
+| Cluster                   | Single-node v1; placement/fencing hooks kept clean for a later v2         |
+| HTTP framework            | Fastify                                                                   |
+| Authoring language        | TypeScript only at publish; server transpiles for execution               |
+| Version pinning per actor | Sticky by default; `floating: true` opt-in per class                      |
+| Real-time delta format    | JSON Patch (RFC 6902) for SWM actors; raw event stream for ES actors      |
 
 Conventions used throughout:
 
@@ -34,7 +34,7 @@ Conventions used throughout:
 
 For the current implementation this plan replaces, see
 [`DESIGN.md`](./DESIGN.md). For what's deliberately not in scope, jump to
-[*Things we are not doing*](#things-we-are-deliberately-not-doing).
+[_Things we are not doing_](#things-we-are-deliberately-not-doing).
 
 ---
 
@@ -99,21 +99,21 @@ For the current implementation this plan replaces, see
 - `src/types.ts`:
 
   ```ts
-  type ActorId      = string & { __brand: "ActorId" };       // UUIDv7
-  type ClassName    = string & { __brand: "ClassName" };
-  type Version      = string & { __brand: "Semver" };
-  type ClassRef     = `${ClassName}@${Version}`;
-  type Manifest     = ReadonlyMap<ClassName, Version>;
+  type ActorId = string & { __brand: 'ActorId' }; // UUIDv7
+  type ClassName = string & { __brand: 'ClassName' };
+  type Version = string & { __brand: 'Semver' };
+  type ClassRef = `${ClassName}@${Version}`;
+  type Manifest = ReadonlyMap<ClassName, Version>;
 
   interface Envelope<T = unknown> {
-    id:             string;        // UUIDv7
-    ts:             number;
-    actor:          { id: ActorId; class: ClassName; version: Version };
-    type:           string;        // method or event name
-    payload:        T;
+    id: string; // UUIDv7
+    ts: number;
+    actor: { id: ActorId; class: ClassName; version: Version };
+    type: string; // method or event name
+    payload: T;
     idempotencyKey?: string;
-    causation?:     string;        // envelope.id that caused this
-    manifestSha:    string;
+    causation?: string; // envelope.id that caused this
+    manifestSha: string;
   }
   ```
 
@@ -121,17 +121,21 @@ For the current implementation this plan replaces, see
 
   ```ts
   abstract class Actor<S extends object> {
-    state!: S;                              // populated by runtime
+    state!: S; // populated by runtime
     abstract onInit?(args: unknown): Promise<void> | void;
     onActivate?(): Promise<void> | void;
     onDeactivate?(): Promise<void> | void;
-    snapshot(): S { return this.state; }    // override for custom serialization
+    snapshot(): S {
+      return this.state;
+    } // override for custom serialization
 
     // populated by the @handler decorator below
     static readonly _handlers: Record<string, Handler>;
   }
 
-  function handler(name?: string): MethodDecorator { /* registers in _handlers */ }
+  function handler(name?: string): MethodDecorator {
+    /* registers in _handlers */
+  }
   ```
 
 - `EventSourced<S, E>` as a parallel base class for ES actors:
@@ -310,7 +314,7 @@ within a mailbox turn.
 - Owns a serial **mailbox** (`p-queue` with `concurrency: 1`). Each
   message:
   - `call` — request/response (`Promise` returned to caller).
-  - `tell` — fire-and-forget, persisted to `actor:<id>:inbox` *before*
+  - `tell` — fire-and-forget, persisted to `actor:<id>:inbox` _before_
     enqueue; acked from the stream once handled.
 - Lazy `onActivate` on first message; `onDeactivate` after configurable
   idle (default 5 min).
@@ -325,7 +329,7 @@ within a mailbox turn.
 - `tell` is fully durable: written to `actor:<id>:inbox` (Valkey Stream)
   before the in-memory queue. Acked after the handler returns. On crash,
   unacked messages are replayed on next activate.
-- `call` is end-to-end; on crash the *caller* retries with the same
+- `call` is end-to-end; on crash the _caller_ retries with the same
   `Idempotency-Key`. The mailbox dedupes via `idem:<key>`.
 - Backpressure: per-actor inbox depth gauge; per-actor `maxMailbox`
   config; over the cap returns a `MailboxFull` error to the caller (or
@@ -342,7 +346,7 @@ within a mailbox turn.
 
 - Each class version may export `async migrate(prevSnapshot, prevVersion)`
   returning the new snapshot (SWM) or `async migrateEvent(event,
-  prevVersion)` returning a new-shape event (ES).
+prevVersion)` returning a new-shape event (ES).
 - On activate, the runtime walks the migration chain from the persisted
   `version` up to the resolved one. For ES actors, both event-level and
   snapshot-level migrations are supported.
@@ -386,12 +390,12 @@ resolve the most-recent-compatible version end-to-end.
 
 ```jsonc
 {
-  "version":  "1.4.2",                // explicit; not auto-bumped
-  "source":   "<TypeScript source>",  // not compiled JS
-  "deps":     { "Item": "^1.0.0", "Pricing": "~2.3.0" },
-  "engines":  { "actjs": "^4.0.0" },
-  "floating": false,                  // sticky by default
-  "eventSourced": false               // ES opt-in
+  "version": "1.4.2", // explicit; not auto-bumped
+  "source": "<TypeScript source>", // not compiled JS
+  "deps": { "Item": "^1.0.0", "Pricing": "~2.3.0" },
+  "engines": { "actjs": "^4.0.0" },
+  "floating": false, // sticky by default
+  "eventSourced": false, // ES opt-in
 }
 ```
 
@@ -438,34 +442,34 @@ hop.
 
   ```ts
   interface ActjsHost {
-    self:        ActorRef;
+    self: ActorRef;
     call<T>(ref: ActorRef, method: string, args: unknown): Promise<T>;
-    tell  (ref: ActorRef, type: string, payload: unknown): Promise<void>;
+    tell(ref: ActorRef, type: string, payload: unknown): Promise<void>;
     scheduleAt(when: number | Date, type: string, payload: unknown): Promise<void>;
     now(): number;
-    log:         Logger;
-    manifest:    Manifest;       // read-only view of the pinned manifest
+    log: Logger;
+    manifest: Manifest; // read-only view of the pinned manifest
     abort(reason: string): never;
   }
   ```
 
   Classes never `import 'pg'` or `import 'fs'` even though they could
   — the linter forbids it, code review catches it, and the only
-  *expected* I/O surface is through `actjs`.
+  _expected_ I/O surface is through `actjs`.
 
   > **Naming note.** In the legacy sketch this parameter was called
   > `gact` and the engine class was `GAct`. The new API renames the
   > parameter to `actjs` (matching the package name) and the
   > interface type to `ActjsHost`. The legacy name is preserved
   > only inside the deprecated `/upload` + `/run` shim — see
-  > *Compatibility* below.
+  > _Compatibility_ below.
 
 ### 4d. Sticky vs floating
 
 - **Sticky** (default): an actor pins to the class version it was
   created with. `actor.class_version` is part of the snapshot.
   Upgrades to a sticky actor require an explicit `actctl actor migrate
-  <id> <newVersion>`.
+<id> <newVersion>`.
 - **Floating** (per-class opt-in): on activate, the runtime picks the
   latest compatible version per the request manifest, running
   `migrate()` from the persisted version if needed.
@@ -483,7 +487,7 @@ Consequences:
 - An old FE bundle keeps talking to the exact class versions it was
   built against, even after the BE has published newer versions, until
   someone explicitly deprecates one of them.
-- Drift becomes *observable*. The server tags every request log line
+- Drift becomes _observable_. The server tags every request log line
   with `manifestSha`; an aggregator turns those into a
   `clients_by_manifest{sha}` gauge (see Phase 8a), so before
   deprecating a class version the operator can check what's still in
@@ -498,7 +502,7 @@ For local dev, the SDK can be configured `pin: 'latest'` to skip the
 header and always re-resolve; the default in production builds is the
 embedded sha.
 
-- Code signing is *optional*. A class version may carry a signature and
+- Code signing is _optional_. A class version may carry a signature and
   signing key id; deployments can require signatures via config
   (`requireSignedClasses: true`). Default off for self-hosted
   development.
@@ -550,12 +554,12 @@ GET    /v1/manifest?root=Cart@1.4.2&dep=Item@^1.0.0
 
 `WS /v1/ws` speaks JSON-RPC 2.0:
 
-| Method                | Direction       | Purpose                                          |
-| --------------------- | --------------- | ------------------------------------------------ |
-| `actor.call`          | client → server | Same as REST POST, multiplexed                   |
-| `actor.subscribe`     | client → server | Subscribe to an actor                            |
-| `actor.unsubscribe`   | client → server | Stop                                             |
-| `actor.event`         | server → client | Notification (see below)                         |
+| Method              | Direction       | Purpose                        |
+| ------------------- | --------------- | ------------------------------ |
+| `actor.call`        | client → server | Same as REST POST, multiplexed |
+| `actor.subscribe`   | client → server | Subscribe to an actor          |
+| `actor.unsubscribe` | client → server | Stop                           |
+| `actor.event`       | server → client | Notification (see below)       |
 
 Subscription notifications, by actor model:
 
@@ -579,8 +583,8 @@ clients that can't keep a WebSocket up.
 fastify.actjs({
   auth: async (req) => {
     // verify your token / cookie / mTLS / whatever
-    return { sub: "u_42", roles: ["admin"], tenant: "default" };
-  }
+    return { sub: 'u_42', roles: ['admin'], tenant: 'default' };
+  },
 });
 ```
 
@@ -610,14 +614,14 @@ in-memory objects.
 ### 6a. `@actjs/client` (TypeScript)
 
 ```ts
-import { Client } from "@actjs/client";
+import { Client } from '@actjs/client';
 
-const client = new Client({ url: "https://api.example.com", token });
-const cart = client.actor("Cart", cartId);
+const client = new Client({ url: 'https://api.example.com', token });
+const cart = client.actor('Cart', cartId);
 
-await cart.call.addItem({ sku: "X", qty: 2 });   // idempotency-keyed
+await cart.call.addItem({ sku: 'X', qty: 2 }); // idempotency-keyed
 const total = await cart.get.total();
-cart.subscribe((state) => render(state));        // WS under the hood
+cart.subscribe((state) => render(state)); // WS under the hood
 ```
 
 - Method signatures come from the generated `.d.ts` (see 6d). Calling a
@@ -625,7 +629,7 @@ cart.subscribe((state) => render(state));        // WS under the hood
 - One WebSocket multiplexed across all `subscribe`/`call`. Exponential
   backoff + replay on reconnect.
 - **Optimistic updates** (SWM only): `cart.optimistic((draft) =>
-  draft.items.push(x))` applies locally via Immer, sends the call,
+draft.items.push(x))` applies locally via Immer, sends the call,
   reverts on failure.
 - **Offline queue:** mutations made offline persist to IndexedDB
   keyed by their `Idempotency-Key` and replay on reconnect.
@@ -636,14 +640,14 @@ cart.subscribe((state) => render(state));        // WS under the hood
 ### 6b. `@actjs/react`
 
 ```tsx
-const cart = useActor("Cart", id);                    // Suspense for initial load
-const total = useActorValue("Cart", id, c => c.total);// memoized selector
+const cart = useActor('Cart', id); // Suspense for initial load
+const total = useActorValue('Cart', id, (c) => c.total); // memoized selector
 ```
 
 - Built on `useSyncExternalStore` for updates, `Suspense` for initial
   load, `useTransition` for optimistic.
 - Server Components: `@actjs/react/server` exports `fetchActor(class,
-  id, { manifest })` returning a serializable snapshot suitable for
+id, { manifest })` returning a serializable snapshot suitable for
   hydration.
 
 ### 6c. `@actjs/svelte`
@@ -698,8 +702,8 @@ internet.
   ```ts
   class Cart extends Actor<CartState> {
     static policy(p: Principal, action: PolicyCtx<Cart>): PolicyDecision {
-      if (action.kind === "call" && action.method === "addItem") {
-        return p.sub === action.actor.state.ownerId ? "allow" : "deny";
+      if (action.kind === 'call' && action.method === 'addItem') {
+        return p.sub === action.actor.state.ownerId ? 'allow' : 'deny';
       }
       // ...
     }
@@ -727,7 +731,7 @@ internet.
 ### 7d. Code signing (optional)
 
 - Publish accepts an `Ed25519` signature over `sha256(source) ||
-  version || name`.
+version || name`.
 - Config flag `requireSignedClasses` rejects unsigned publishes.
 - Allowed signing keys live in PG `signing_key`.
 
@@ -780,13 +784,13 @@ loop fast.
 - `actctl dev` — hot-reload watcher on a local class dir, republishes
   pre-release versions, drops cluster awareness for speed.
 - `actctl publish`, `actctl list`, `actctl deprecate`, `actctl
-  promote`.
+promote`.
 - `actctl shell` — admin REPL: arbitrary `await` snippets routed
   through `actor.call`.
 - `actctl actor inspect <id>` — current state, recent envelopes,
   resolved manifest, mailbox depth.
 - `actctl manifest show --root Cart@1.4.2 --range Item@^1.0.0` — what
-  *would* resolve.
+  _would_ resolve.
 - `actctl manifest in-use` — read the `clients_by_manifest` gauge and
   report which manifest shas are currently being sent by live clients,
   with the class versions each resolves to. Run this before
@@ -813,7 +817,7 @@ caps.
 
 ## Phase 9 — Cluster (sketch only, deferred)
 
-We do not build this for v1. We *do* keep the seams clean so it can
+We do not build this for v1. We _do_ keep the seams clean so it can
 land later without rewriting earlier phases.
 
 What is reserved for the future:
@@ -854,9 +858,9 @@ to "the current owner" is a localized change.
 
 - README stays usage-focused.
 - DESIGN.md gets a section per phase as it ships.
-- A `docs/` site (Astro Starlight) with concept guides: *Actors*,
-  *Event sourcing*, *Versioning & migrations*, *Capabilities*,
-  *Operating*. Doc PRs are part of the phase PRs; docs-not-shipped is
+- A `docs/` site (Astro Starlight) with concept guides: _Actors_,
+  _Event sourcing_, _Versioning & migrations_, _Capabilities_,
+  _Operating_. Doc PRs are part of the phase PRs; docs-not-shipped is
   a CI failure.
 
 ### Compatibility / migration from the current sketch

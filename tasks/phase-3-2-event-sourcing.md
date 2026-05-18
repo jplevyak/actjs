@@ -58,7 +58,7 @@ periodic snapshots compress cold-start time. Builds on 3.1's mailbox.
 ### Idempotency for ES handlers
 
 - [ ] If `Idempotency-Key` is set and the key was already processed,
-      *replay* the stored response without re-emitting events.
+      _replay_ the stored response without re-emitting events.
 - [ ] If the handler ran but the response write failed, the next
       retry must see the events but produce the same response (the
       response is derived from events).
@@ -79,7 +79,7 @@ periodic snapshots compress cold-start time. Builds on 3.1's mailbox.
 ### Migration story (hooks only; real migrations in 3.3)
 
 - [ ] Reserve `migrate(prevSnap, prevVer)` and `migrateEvent(event,
-      prevVer)` slots on `EventSourced` — empty no-ops in this
+prevVer)` slots on `EventSourced` — empty no-ops in this
       phase, wired by 3.3.
 
 ---

@@ -45,7 +45,7 @@ links without a full auth flow.
 
 ### Policy invocation point
 
-- [ ] Runtime checks policy *before* the message hits the mailbox.
+- [ ] Runtime checks policy _before_ the message hits the mailbox.
 - [ ] Policy is pure: no `actjs.call`, no I/O. Document and enforce
       by withholding host APIs in the call frame.
 - [ ] On deny: 403 with reason in problem detail (sanitized).

@@ -40,14 +40,14 @@ come in 3.2 and 3.3.
 ### Mailbox
 
 - [ ] `src/runtime/mailbox.ts` — bounded async queue, `concurrency:
-      1` semantics.
+1` semantics.
 - [ ] Two message types:
   - [ ] `call(method, args)` — returns a `Promise<R>` to the caller;
         resolves with the handler return or rejects on throw.
   - [ ] `tell(type, payload)` — fire-and-forget, no return.
 - [ ] Inbox durability:
   - [ ] Every `tell` is written to `actor:<id>:inbox` (Valkey
-        stream) *before* the in-memory enqueue.
+        stream) _before_ the in-memory enqueue.
   - [ ] On handler success, the stream entry is acked (`XACK`
         equivalent).
   - [ ] On activate, replay un-acked stream entries before accepting

@@ -43,11 +43,11 @@ the connection lifetime.
   - [ ] `actor.call(class, id, method, args, meta?)` →
         `{ result, manifest, seq? }`.
   - [ ] `actor.subscribe(class, id, opts?)` → `{ subscriptionId,
-        snapshot, seq? }`.
+snapshot, seq? }`.
   - [ ] `actor.unsubscribe(subscriptionId)` → `{ ok: true }`.
 - [ ] Notifications:
   - [ ] `actor.event` with shape `{ subscriptionId, kind: 'patch' |
-        'event' | 'snapshot' | 'tombstone', data, seq? }`.
+'event' | 'snapshot' | 'tombstone', data, seq? }`.
 - [ ] Errors use `code` aligned with REST framework codes (negative
       codes per JSON-RPC convention; map by table).
 

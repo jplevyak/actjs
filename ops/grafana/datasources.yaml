@@ -1,0 +1,36 @@
+# Grafana datasource provisioning for actjs.
+#
+# The Prometheus + Postgres + Valkey scrape endpoints are documented
+# here; dashboards arrive in Phase 8.1. Operators copy this into
+# their Grafana provisioning directory or extend it with auth.
+
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false
+
+  - name: actjs Postgres
+    type: postgres
+    access: proxy
+    url: postgres:5432
+    database: actjs
+    user: actjs
+    secureJsonData:
+      password: actjs
+    jsonData:
+      sslmode: disable
+      postgresVersion: 1600
+    editable: false
+
+  # The valkey-datasource Grafana plugin exposes ZSETs / streams as a
+  # read source; useful for inspecting `reminders` during incidents.
+  - name: actjs Valkey
+    type: valkey-datasource
+    access: proxy
+    url: redis://valkey:6379
+    editable: false

@@ -50,12 +50,15 @@ Likely decisions to settle here:
 ## Consequences
 
 ### Positive
+
 - _TBD_
 
 ### Negative / trade-offs
+
 - _TBD_
 
 ### Follow-ups for later phases
+
 - _TBD_
 
 ## Alternatives considered (and why not)

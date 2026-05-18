@@ -1,19 +1,93 @@
 {
   "name": "actjs",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "A small JavaScript actor framework with optimistic-concurrency transactions backed by Redis.",
   "type": "module",
-  "main": "main.js",
+  "main": "dist/main.js",
+  "exports": {
+    ".": {
+      "types": "./dist/main.d.ts",
+      "import": "./dist/main.js"
+    },
+    "./types": {
+      "types": "./dist/types/index.d.ts",
+      "import": "./dist/types/index.js"
+    },
+    "./actor": {
+      "types": "./dist/actor.d.ts",
+      "import": "./dist/actor.js"
+    },
+    "./event-sourced": {
+      "types": "./dist/event-sourced.d.ts",
+      "import": "./dist/event-sourced.js"
+    },
+    "./replica": {
+      "types": "./dist/replica.d.ts",
+      "import": "./dist/replica.js"
+    },
+    "./handler": {
+      "types": "./dist/handler.d.ts",
+      "import": "./dist/handler.js"
+    },
+    "./legacy": {
+      "types": "./dist/legacy/shim.d.ts",
+      "import": "./dist/legacy/shim.js"
+    },
+    "./runtime": {
+      "types": "./dist/runtime/index.d.ts",
+      "import": "./dist/runtime/index.js"
+    },
+    "./storage": {
+      "types": "./dist/storage/index.d.ts",
+      "import": "./dist/storage/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md"
+  ],
   "engines": {
     "node": ">=20"
   },
   "scripts": {
-    "start": "node main.js",
-    "demo": "./demo.bash"
+    "build": "tsc -b tsconfig.build.json",
+    "clean": "rm -rf dist *.tsbuildinfo coverage",
+    "dev": "tsx watch src/main.ts",
+    "start": "node dist/main.js",
+    "demo": "./demo.bash",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "express": "^5.0.1",
     "multer": "^2.0.0",
-    "redis": "^4.7.0"
+    "pg": "^8.21.0",
+    "redis": "^4.7.0",
+    "semver": "^7.8.0",
+    "typescript": "^5.6.3",
+    "uuidv7": "^1.2.1",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.15.0",
+    "@types/express": "^5.0.0",
+    "@types/multer": "^1.4.12",
+    "@types/node": "^20.17.6",
+    "@types/pg": "^8.20.0",
+    "@types/semver": "^7.7.1",
+    "@vitest/coverage-v8": "^2.1.5",
+    "eslint": "^9.15.0",
+    "eslint-plugin-import": "^2.31.0",
+    "prettier": "^3.3.3",
+    "tsx": "^4.19.2",
+    "typescript-eslint": "^8.14.0",
+    "vitest": "^2.1.5"
   }
 }

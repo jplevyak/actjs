@@ -29,10 +29,10 @@ observability needed to deprecate old class versions safely.
   - [ ] Sha present → load via `driver.loadManifest(sha)` →
         `ctx.manifest`.
   - [ ] Sha unknown → 400 `ManifestUnknown`.
-  - [ ] Sha references a *deprecated* class version → response
+  - [ ] Sha references a _deprecated_ class version → response
         gets a `Warning: 299 - "VersionDeprecated"` header and a
         structured warning field in JSON.
-  - [ ] Sha references a *removed* class version → 410 `Gone`.
+  - [ ] Sha references a _removed_ class version → 410 `Gone`.
 - [ ] WS connect: same handshake; the pin is associated with the
       connection, applied to every JSON-RPC call until the client
       reconnects.
@@ -41,8 +41,7 @@ observability needed to deprecate old class versions safely.
 
 - [ ] Every request log line carries `manifestSha`.
 - [ ] Active WS connections expose `manifestSha` for the duration.
-- [ ] A periodic reducer (every 30 s) aggregates active connections
-      + a sliding window of recent requests into the
+- [ ] A periodic reducer (every 30 s) aggregates active connections + a sliding window of recent requests into the
       `clients_by_manifest{sha}` gauge.
 - [ ] Per-sha last-seen timestamp stored at `manifest:<sha>:lastSeen`
       in Valkey for `actctl manifest in-use`.

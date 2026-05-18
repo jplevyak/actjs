@@ -13,7 +13,7 @@ shim that keeps today's `/run` + `/upload` working.
 ## Done when
 
 - `import { Actor, EventSourced, Replica, type Envelope, type Manifest, ... }
-  from 'actjs/types'` works from a fresh consumer package.
+from 'actjs/types'` works from a fresh consumer package.
 - A toy `Counter` actor written against the new base types compiles
   and round-trips a `tell` end-to-end against an in-memory driver.
 - Legacy `Beta` and `Gamma` demo classes still load via the shim
@@ -31,7 +31,7 @@ shim that keeps today's `/run` + `/upload` working.
       in PLAN.md Phase 1 (id, ts, actor ref, type, payload,
       idempotencyKey, causation, manifestSha).
 - [ ] `src/types/manifest.ts` — `Manifest` as `ReadonlyMap<ClassName,
-      Version>` with helper to compute its sha256.
+Version>` with helper to compute its sha256.
 - [ ] UUIDv7 source: prefer `uuidv7` package over hand-rolled.
 
 ### Actor base classes

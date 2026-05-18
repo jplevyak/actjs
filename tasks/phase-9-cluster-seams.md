@@ -82,7 +82,7 @@ pattern as Phases 0–8.
 
 ## Implementation tasks (broken out when v2 starts)
 
-The following are *not* sized in this task. Each becomes its own
+The following are _not_ sized in this task. Each becomes its own
 task with checklist + ADR when the cluster work is greenlit:
 
 - **9.1 — Membership.** Valkey-backed leader election or external

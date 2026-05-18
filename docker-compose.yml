@@ -1,0 +1,50 @@
+services:
+  valkey:
+    image: valkey/valkey:8-alpine
+    command: ['valkey-server', '/etc/valkey/valkey.conf']
+    ports:
+      - '6379:6379'
+    volumes:
+      - valkey-data:/data
+      - ./ops/valkey.conf:/etc/valkey/valkey.conf:ro
+    healthcheck:
+      test: ['CMD', 'valkey-cli', 'ping']
+      interval: 2s
+      timeout: 2s
+      retries: 10
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: actjs
+      POSTGRES_PASSWORD: actjs
+      POSTGRES_DB: actjs
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U actjs']
+      interval: 2s
+      timeout: 2s
+      retries: 10
+
+  actjs:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      valkey:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    environment:
+      PORT: '3000'
+      REDIS_URL: 'redis://valkey:6379'
+      DATABASE_URL: 'postgres://actjs:actjs@postgres:5432/actjs'
+    ports:
+      - '3000:3000'
+
+volumes:
+  valkey-data:
+  postgres-data:

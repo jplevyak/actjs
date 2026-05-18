@@ -50,10 +50,10 @@ turns a request into a `Principal` for every later phase to use.
 - [ ] `Principal` type:
   ```ts
   interface Principal {
-    sub:     string;
-    roles?:  readonly string[];
+    sub: string;
+    roles?: readonly string[];
     tenant?: string;
-    capabilities?: readonly string[];  // for Phase 7b
+    capabilities?: readonly string[]; // for Phase 7b
     claims?: Readonly<Record<string, unknown>>;
   }
   ```
@@ -92,7 +92,7 @@ turns a request into a `Principal` for every later phase to use.
 ## Risks & watch-outs
 
 - [ ] SSE behind a buffering proxy will batch events. `X-Accel-
-      Buffering: no` for nginx; ADR records the headers to set
+Buffering: no` for nginx; ADR records the headers to set
       against well-known proxies.
 - [ ] Manifest pin via query string is visible in logs and caches.
       Recommend the header path; allow query only for `EventSource`.

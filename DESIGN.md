@@ -10,7 +10,7 @@ people modifying the framework, not for users of it. For usage, see
 **Goals.**
 
 - Treat a single HTTP request as a serializable database transaction over a
-  graph of *actors* (long-lived JSON objects with methods).
+  graph of _actors_ (long-lived JSON objects with methods).
 - Let actors hold references to other actors, and load referents lazily on
   property access.
 - Allow user code (both ad-hoc snippets and actor class definitions) to be
@@ -83,15 +83,15 @@ await gact.commit();
 
 Fields:
 
-| Field         | Meaning                                                            |
-| ------------- | ------------------------------------------------------------------ |
-| `tid`         | Monotonic per-process transaction id (informational only).         |
-| `redis`       | Connected Redis client (one per HTTP request; injected).           |
-| `actors`      | `Record<id, Actor>` — every actor touched in this transaction.     |
-| `actors_json` | `Record<id, string>` — JSON each loaded actor *started* as.        |
-| `max_retries` | How many times `/run` will rerun on commit conflict (default 5).   |
-| `aborted`     | If `abort()` was called, `commit()` is a no-op success.            |
-| `Actor`,`Aggregate`,`Replica` | The three base classes, exposed to user code. |
+| Field                         | Meaning                                                          |
+| ----------------------------- | ---------------------------------------------------------------- |
+| `tid`                         | Monotonic per-process transaction id (informational only).       |
+| `redis`                       | Connected Redis client (one per HTTP request; injected).         |
+| `actors`                      | `Record<id, Actor>` — every actor touched in this transaction.   |
+| `actors_json`                 | `Record<id, string>` — JSON each loaded actor _started_ as.      |
+| `max_retries`                 | How many times `/run` will rerun on commit conflict (default 5). |
+| `aborted`                     | If `abort()` was called, `commit()` is a no-op success.          |
+| `Actor`,`Aggregate`,`Replica` | The three base classes, exposed to user code.                    |
 
 The transaction id is not used for locking — Redis WATCH/MULTI is the only
 concurrency mechanism. The `tid` exists for logging and future tracing.
@@ -118,7 +118,7 @@ A parent that holds two references will serialize as e.g.:
 ```json
 {
   "actor_class": "Foo",
-  "left":  { "actor_id": "uuid-a" },
+  "left": { "actor_id": "uuid-a" },
   "right": { "actor_id": "uuid-b" }
 }
 ```
@@ -129,7 +129,7 @@ lazy-load getters (see below) and the raw id pairs move into a sidecar
 `actor_ids` map for serialization.
 
 There is no per-class index, no version field, no envelope. The class name
-*is* the schema pointer.
+_is_ the schema pointer.
 
 ## Class loading
 
@@ -165,7 +165,7 @@ constructor:
 3. `JSON.parse` → plain object `a`.
 4. Look up (or load) `gact[a.actor_class]`.
 5. `Object.setPrototypeOf(a, gact[a.actor_class].prototype)` — `a` now
-   *is* an instance of that class without the constructor running.
+   _is_ an instance of that class without the constructor running.
 6. Attach `a.actor_id`, `a.gact`, and delete `actor_class` (it's
    regenerated on save from `a.constructor.name`).
 7. Walk the object via `fixupFromLoad`, replacing every nested
@@ -224,7 +224,7 @@ was called.
 
 ## Concurrency control
 
-actjs implements *optimistic, snapshot-comparable* serializability through
+actjs implements _optimistic, snapshot-comparable_ serializability through
 Redis:
 
 1. Every `load(id)` issues `WATCH id` before reading.
@@ -239,7 +239,7 @@ Redis:
 
 Notes and limits:
 
-- Only keys explicitly *read* via `load` are watched. Snippets that
+- Only keys explicitly _read_ via `load` are watched. Snippets that
   blind-write via `gact.write(id, ...)` do not participate.
 - Watching only happens on first load; the actor cache in `gact.actors`
   short-circuits subsequent calls.
@@ -252,7 +252,7 @@ Notes and limits:
 The `/run` and class-loading paths both use:
 
 ```js
-const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
+const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
 const f = new AsyncFunction('gact', source);
 const value = await f(gact);
 ```
@@ -269,7 +269,7 @@ Properties of this choice:
 - Top-level `await` inside the snippet works because the function is async.
 - `return value;` from the snippet becomes the resolved value of the
   outer `await`.
-- *No* sandbox. Variables declared in the snippet live in the function
+- _No_ sandbox. Variables declared in the snippet live in the function
   scope and disappear when it returns, but global state (the Node process,
   `globalThis`, modules already loaded) is fully reachable from user code.
   See "Security" below.
@@ -306,7 +306,7 @@ state unchanged.
 - A single Express 5 app with three routes (`GET /`, `POST /run`,
   `POST /upload`) and one error handler.
 - Body parsers (`express.json`, `express.text({ type: '*/*' })`) are scoped
-  to `/run` only. They are *not* registered globally, because a wildcard
+  to `/run` only. They are _not_ registered globally, because a wildcard
   text parser would consume `multipart/form-data` before multer could read
   the stream.
 - `/upload` uses `multer@2.x` with `memoryStorage()` and accepts any field
@@ -322,16 +322,16 @@ state unchanged.
 
 ## Failure modes
 
-| Failure                                | Where caught                | HTTP code | Notes                                           |
-| -------------------------------------- | --------------------------- | --------- | ----------------------------------------------- |
-| Syntax error in `/run` snippet         | `new AsyncFunction(...)`    | 400       |                                                 |
-| Snippet throws                         | `await f(gact)` catch       | 400       | `StatusError` rethrown as-is.                   |
-| Class source missing                   | `loadClass`                 | 404       |                                                 |
-| Class source compile error             | `loadClass`                 | 400       |                                                 |
-| `actor_class` not loadable             | `load`                      | 400       |                                                 |
-| Commit conflict (watched key changed)  | retry loop in `/run`        | 409 (after `max_retries`) | Earlier conflicts retry silently. |
-| Multer / form parse error              | error middleware            | 500       |                                                 |
-| Redis read/write error                 | `read`/`write`              | 500       | Surfaces as `StatusError`.                      |
+| Failure                               | Where caught             | HTTP code                 | Notes                             |
+| ------------------------------------- | ------------------------ | ------------------------- | --------------------------------- |
+| Syntax error in `/run` snippet        | `new AsyncFunction(...)` | 400                       |                                   |
+| Snippet throws                        | `await f(gact)` catch    | 400                       | `StatusError` rethrown as-is.     |
+| Class source missing                  | `loadClass`              | 404                       |                                   |
+| Class source compile error            | `loadClass`              | 400                       |                                   |
+| `actor_class` not loadable            | `load`                   | 400                       |                                   |
+| Commit conflict (watched key changed) | retry loop in `/run`     | 409 (after `max_retries`) | Earlier conflicts retry silently. |
+| Multer / form parse error             | error middleware         | 500                       |                                   |
+| Redis read/write error                | `read`/`write`           | 500                       | Surfaces as `StatusError`.        |
 
 ## Security
 
@@ -353,7 +353,7 @@ on both endpoints.
 
 ## Open / deferred design questions
 
-These are explicitly *not* solved:
+These are explicitly _not_ solved:
 
 - **Cross-transaction class cache.** Today every `GAct` reloads class
   source on first use. A digest-keyed cache (`/class_sha256/<Name>`) is

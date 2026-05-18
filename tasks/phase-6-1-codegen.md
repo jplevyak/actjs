@@ -63,7 +63,7 @@ client-side type safety depends on this task landing first.
 
 ### ES reducer export
 
-- [ ] For ES classes, emit a *runtime* helper alongside the types:
+- [ ] For ES classes, emit a _runtime_ helper alongside the types:
       a function the SDK can use to apply events client-side.
 - [ ] The helper is generated from the server's TS source so it's
       byte-identical to server `reduce` semantics.

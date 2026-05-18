@@ -98,7 +98,7 @@ the resolver that turns a root request into a pinned `Manifest`.
 - [ ] Resolver complexity is exponential in pathological dep
       shapes. Add a depth + node cap (e.g. 16 deep, 256 nodes)
       with a clear error if exceeded.
-- [ ] Manifest sha must be over a *canonical* JSON, not the result
+- [ ] Manifest sha must be over a _canonical_ JSON, not the result
       of `JSON.stringify(map)`. Use a sorted-key serializer; record
       the exact algorithm in the ADR so clients can recompute it.
 - [ ] `class_blob` dedupes by sha — make sure two distinct

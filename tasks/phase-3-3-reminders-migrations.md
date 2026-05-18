@@ -30,7 +30,7 @@ explicit hot/warm/cold activation paths.
       host bridge (the bridge itself is wired in Phase 4.2; this
       task provides the storage-level call).
 - [ ] Driver-level enqueue: `enqueueReminder(when, msg)` writes the
-      Valkey ZSET *and* a PG `reminder` mirror row in one logical
+      Valkey ZSET _and_ a PG `reminder` mirror row in one logical
       transaction (PG is source of truth; Valkey is the hot queue).
 - [ ] Dispatcher loop:
   - [ ] Tick every 100 ms (configurable).
@@ -54,14 +54,14 @@ explicit hot/warm/cold activation paths.
         `migrateEvent(event, prevVersion)` over the event tail (ES).
   - [ ] Write a new snapshot at the target version.
   - [ ] The old snapshot is retained at `actor_snapshot(actor_id,
-        -1)` (sentinel seq) for the configurable retention window.
+-1)` (sentinel seq) for the configurable retention window.
 - [ ] Migrations are required to be pure; the runtime gives them
       only `actjs.now`, `actjs.log`, and the prior snapshot/event.
       No `actjs.call` from inside a migration.
 - [ ] `actctl actor migrate <id> <newVersion>` — explicit, for sticky
       actors.
 - [ ] `actctl migrate dry-run --class X --from A --to B [--sample
-      N]`:
+N]`:
   - [ ] Picks N random actors of class X currently on version A.
   - [ ] Runs the chain in memory.
   - [ ] Reports JSON diffs (snapshot before / after).

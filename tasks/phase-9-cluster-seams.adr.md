@@ -60,12 +60,15 @@ Active cluster decisions deferred to v2:
 ## Consequences
 
 ### Positive
+
 - _TBD_
 
 ### Negative / trade-offs
+
 - _TBD_
 
 ### Follow-ups when v2 starts
+
 - Convert each "9.x — ..." line in the task to its own task + ADR.
 
 ## Alternatives considered (and why not)

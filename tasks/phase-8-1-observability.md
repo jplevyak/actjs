@@ -81,7 +81,7 @@ guards, and a default Grafana dashboard bundle.
   - [ ] `DeprecatedVersionStillUsed`.
 - [ ] Compose stack adds a Prometheus + Grafana service for local
       experimentation (off by default; `compose -f compose.yml -f
-      compose.observability.yml`).
+compose.observability.yml`).
 
 ### SLO definitions
 

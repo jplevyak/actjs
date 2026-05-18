@@ -13,10 +13,10 @@ Phases 4 and 6.
 Four distinct things people conflate:
 
 1. **Type sync** — the FE's TS types match what the BE accepts/returns
-   *at compile time*.
+   _at compile time_.
 2. **Schema sync** — the FE's runtime validators match the BE contract
-   *at runtime*.
-3. **Version sync** — the FE knows which *class versions* it expects
+   _at runtime_.
+3. **Version sync** — the FE knows which _class versions_ it expects
    to talk to.
 4. **Deploy sync** — both halves go out together, or with planned
    overlap for in-flight clients.
@@ -36,7 +36,7 @@ mechanical rather than disciplined:
 - **Sticky-by-default activation.** New BE versions don't yank the rug
   from actors already created against older versions.
 - **Deprecation ≠ deletion.** Marking a version deprecated hides it
-  from *new* resolutions but leaves it queryable for clients pinned to
+  from _new_ resolutions but leaves it queryable for clients pinned to
   a manifest that references it.
 - **Manifest sha is observable.** Every request carries the manifest
   the client expected; the server logs and gauges it.
@@ -78,7 +78,7 @@ Key invariants:
   server publishes from it on deploy; codegen reads from it on build.
 - `packages/client-types/` is **always generated, never edited**. It's
   committed (so PRs are reviewable as diff) but `actctl codegen
-  --check` fails CI if it's stale.
+--check` fails CI if it's stale.
 - `apps/web/` depends on `client-types/` and `sdk-react/`. It cannot
   reach into `packages/classes/` directly — enforced by lint
   (`eslint-plugin-boundaries`, Nx tags, or tsconfig path
@@ -105,7 +105,7 @@ only edits in between releases are additive on the BE side.**
 ```
 
 The ordering matters because between (a) and (c) the BE is serving
-*both* the old and new versions. There is never a moment when an FE
+_both_ the old and new versions. There is never a moment when an FE
 in the wild can request a class version that doesn't exist on the
 BE.
 
@@ -117,20 +117,20 @@ with the BE/FE ordering above as an internal implementation detail.
 
 ## What counts as a breaking BE change
 
-| Change                              | Class semver bump | Old FE keeps working? |
-| ----------------------------------- | ----------------- | --------------------- |
-| Add a new handler                   | minor             | Yes                   |
-| Add an optional field to an event   | minor             | Yes                   |
-| Add a required field to a handler   | major             | Yes (old version still runs) |
-| Remove a handler                    | major             | Yes (until old ver deprecated) |
-| Change return-type semantics        | major             | Yes (until old ver deprecated) |
-| Rename a field                      | major             | Yes (until old ver deprecated) |
-| Fix a bug in an existing handler    | patch             | See below             |
+| Change                            | Class semver bump | Old FE keeps working?          |
+| --------------------------------- | ----------------- | ------------------------------ |
+| Add a new handler                 | minor             | Yes                            |
+| Add an optional field to an event | minor             | Yes                            |
+| Add a required field to a handler | major             | Yes (old version still runs)   |
+| Remove a handler                  | major             | Yes (until old ver deprecated) |
+| Change return-type semantics      | major             | Yes (until old ver deprecated) |
+| Rename a field                    | major             | Yes (until old ver deprecated) |
+| Fix a bug in an existing handler  | patch             | See below                      |
 
 The patch case is the only subtle one. Sticky-by-default means:
 
-- *New* actors created with the bumped class get the patched behavior.
-- *Existing* actors stay pinned to whatever version they were created
+- _New_ actors created with the bumped class get the patched behavior.
+- _Existing_ actors stay pinned to whatever version they were created
   with. They get the patch only when explicitly migrated
   (`actctl actor migrate <id> <newVersion>`).
 
@@ -159,7 +159,7 @@ These keep teams honest without ceremony:
 6. **Forbid `Name` (unversioned class refs)** in `apps/web/` source.
    `actjs/no-unversioned-class` lint rule.
 7. **Manifest-in-use check before deprecate** — `actctl manifest
-   in-use` reports which client manifest shas are still being sent in
+in-use` reports which client manifest shas are still being sent in
    production. Deprecating a class version while a non-trivial
    fraction of clients pin to it fails CI on the deploy that flips
    the `deprecated` flag.
@@ -196,8 +196,8 @@ The same patterns work in polyrepo with two additions:
 
 The cost is one extra publish step per iteration and a slower local
 loop (no shared workspace). Monorepo is materially better for actjs's
-call pattern because the FE's *type* world is generated from the BE's
-*class source* — keeping that loop inside one workspace removes a
+call pattern because the FE's _type_ world is generated from the BE's
+_class source_ — keeping that loop inside one workspace removes a
 publish step from every change.
 
 ## What this doc deliberately does not cover

@@ -44,7 +44,7 @@ principal + per-actor rate / quota limits.
       `added_at`, `revoked_at`.
 - [ ] Publish accepts:
   - [ ] `signature` (base64) over `sha256(source) || ':' || name ||
-        '@' || version`.
+'@' || version`.
   - [ ] `kid` (signing key id).
 - [ ] Verification:
   - [ ] Look up `kid` in `signing_key`; refuse if revoked.
