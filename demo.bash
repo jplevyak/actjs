@@ -24,6 +24,12 @@ ACTJS_URL="${ACTJS_URL:-http://127.0.0.1:3000}"
 AUTO="${AUTO:-0}"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# The legacy /run + /upload endpoints require the `admin` role since
+# Phase 5.3. For the demo we use the dev-admin shortcut header; the
+# server only honors it when NODE_ENV=development or
+# ACTJS_DEV_ADMIN_HEADER=1 is set.
+ADMIN_HEADER=(-H "X-Actjs-Admin: 1")
+
 # Use jq for pretty-printing if available, otherwise pass JSON through unchanged.
 if command -v jq >/dev/null 2>&1; then
   pretty() { jq .; }
@@ -83,47 +89,47 @@ note "server is up."
 
 step "Run a trivial snippet"
 note "POST plain text JS to /run; the body is wrapped in an async function."
-run_curl -X POST -H "Content-Type: text/plain" --data "return 1;" "$ACTJS_URL/run"
+run_curl -X POST "${ADMIN_HEADER[@]}" -H "Content-Type: text/plain" --data "return 1;" "$ACTJS_URL/run"
 pause
 
 step "Create two linked Actors"
 show_file demo1_create
-run_curl -X POST -H "Content-Type: text/plain" --data-binary "@$HERE/demo1_create" "$ACTJS_URL/run"
+run_curl -X POST "${ADMIN_HEADER[@]}" -H "Content-Type: text/plain" --data-binary "@$HERE/demo1_create" "$ACTJS_URL/run"
 pause
 
 step "Read a property through a lazy Actor reference"
 show_file demo1_read
-run_curl -X POST -H "Content-Type: text/plain" --data-binary "@$HERE/demo1_read" "$ACTJS_URL/run"
+run_curl -X POST "${ADMIN_HEADER[@]}" -H "Content-Type: text/plain" --data-binary "@$HERE/demo1_read" "$ACTJS_URL/run"
 pause
 
 step "Write a property and observe the new value in-transaction"
 show_file demo1_write
-run_curl -X POST -H "Content-Type: text/plain" --data-binary "@$HERE/demo1_write" "$ACTJS_URL/run"
+run_curl -X POST "${ADMIN_HEADER[@]}" -H "Content-Type: text/plain" --data-binary "@$HERE/demo1_write" "$ACTJS_URL/run"
 pause
 
 step "Read again — the write committed"
 show_file demo1_read
-run_curl -X POST -H "Content-Type: text/plain" --data-binary "@$HERE/demo1_read" "$ACTJS_URL/run"
+run_curl -X POST "${ADMIN_HEADER[@]}" -H "Content-Type: text/plain" --data-binary "@$HERE/demo1_read" "$ACTJS_URL/run"
 pause
 
 step "Upload a user-defined Actor class (Beta)"
 show_file Beta.js
-run_curl -X POST -F "file=@$HERE/Beta.js" "$ACTJS_URL/upload"
+run_curl -X POST "${ADMIN_HEADER[@]}" -F "file=@$HERE/Beta.js" "$ACTJS_URL/upload"
 pause
 
 step "Instantiate Beta and store it"
 show_file demo2_create
-run_curl -X POST -H "Content-Type: text/plain" --data-binary "@$HERE/demo2_create" "$ACTJS_URL/run"
+run_curl -X POST "${ADMIN_HEADER[@]}" -H "Content-Type: text/plain" --data-binary "@$HERE/demo2_create" "$ACTJS_URL/run"
 pause
 
 step "Load Beta and call its method"
 show_file demo2_read
-run_curl -X POST -H "Content-Type: text/plain" --data-binary "@$HERE/demo2_read" "$ACTJS_URL/run"
+run_curl -X POST "${ADMIN_HEADER[@]}" -H "Content-Type: text/plain" --data-binary "@$HERE/demo2_read" "$ACTJS_URL/run"
 pause
 
 step "Upload Beta and a Replica class (Gamma) together"
 show_file Gamma.js
-run_curl -X POST \
+run_curl -X POST "${ADMIN_HEADER[@]}" \
   -F "file1=@$HERE/Beta.js" \
   -F "file2=@$HERE/Gamma.js" \
   "$ACTJS_URL/upload"
@@ -131,16 +137,16 @@ pause
 
 step "Create a Gamma replica"
 show_file demo3_create
-run_curl -X POST -H "Content-Type: text/plain" --data-binary "@$HERE/demo3_create" "$ACTJS_URL/run"
+run_curl -X POST "${ADMIN_HEADER[@]}" -H "Content-Type: text/plain" --data-binary "@$HERE/demo3_create" "$ACTJS_URL/run"
 pause
 
 step "Mutate a Replica in-transaction (writes are not persisted by default)"
 show_file demo3_read
-run_curl -X POST -H "Content-Type: text/plain" --data-binary "@$HERE/demo3_read" "$ACTJS_URL/run"
+run_curl -X POST "${ADMIN_HEADER[@]}" -H "Content-Type: text/plain" --data-binary "@$HERE/demo3_read" "$ACTJS_URL/run"
 pause
 
 step "Re-run — Replica state is unchanged across transactions"
 show_file demo3_read
-run_curl -X POST -H "Content-Type: text/plain" --data-binary "@$HERE/demo3_read" "$ACTJS_URL/run"
+run_curl -X POST "${ADMIN_HEADER[@]}" -H "Content-Type: text/plain" --data-binary "@$HERE/demo3_read" "$ACTJS_URL/run"
 
 printf '\n%sDemo complete.%s\n' "$BOLD" "$RESET"

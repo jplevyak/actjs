@@ -108,6 +108,11 @@ jobs:
         env:
           PORT: '3000'
           REDIS_URL: 'redis://127.0.0.1:6379'
+          # demo.bash hits the legacy /run + /upload endpoints, which
+          # require the `admin` role since Phase 5.3. Enable the
+          # dev-admin shortcut so the X-Actjs-Admin: 1 header is
+          # accepted without standing up a real auth provider.
+          ACTJS_DEV_ADMIN_HEADER: '1'
       - name: Wait for server
         run: |
           for i in $(seq 1 30); do
