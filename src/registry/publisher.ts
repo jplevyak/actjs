@@ -76,6 +76,15 @@ export class SyntaxInvalid extends PublishError {
   }
 }
 
+export class ForbiddenImport extends PublishError {
+  constructor(statement: string) {
+    super(
+      `published class source must be a function body — top-level import/export is not allowed: ${statement}`,
+      'ForbiddenImport',
+    );
+  }
+}
+
 /* --------------------------------------------------- Implementation */
 
 /** Validate a publish input. Throws on the first failure. */
@@ -99,10 +108,28 @@ export function validatePublish(input: PublishInput): void {
     }
   }
   const sourceStr = typeof input.source === 'string' ? input.source : input.source.toString('utf8');
+  const forbidden = findForbiddenImport(sourceStr);
+  if (forbidden) throw new ForbiddenImport(forbidden);
   const diagnostics = parseTypeScript(sourceStr, input.name as string);
   if (diagnostics.length > 0) {
     throw new SyntaxInvalid(diagnostics);
   }
+}
+
+/**
+ * Conservative regex check for top-level import/export statements.
+ * Matches the obvious cases (`import X from ...`, `export class ...`,
+ * etc.); the eventual AST-based pass (Phase 7.2) can tighten or
+ * loosen as needed.
+ */
+function findForbiddenImport(source: string): string | null {
+  // Strip line comments and block comments before scanning so commented-
+  // out import lines don't trigger the gate.
+  const stripped = source.replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '');
+  // Multi-line: `import` or `export` as the first non-whitespace on a line.
+  const pattern = /^[ \t]*(import|export)\b[^\n]*/m;
+  const m = pattern.exec(stripped);
+  return m ? m[0].trim() : null;
 }
 
 /** Run validation + storage write + audit. Returns the source sha256. */

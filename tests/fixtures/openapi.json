@@ -1,0 +1,2939 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "actjs",
+    "description": "Self-hosted actor framework HTTP API",
+    "version": "0.3.0"
+  },
+  "components": {
+    "schemas": {}
+  },
+  "paths": {
+    "/v1/health": {
+      "get": {
+        "summary": "Liveness check",
+        "tags": [
+          "health"
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "def": {
+                    "type": "object",
+                    "shape": {
+                      "status": {
+                        "def": {
+                          "type": "literal",
+                          "values": [
+                            "ok"
+                          ]
+                        },
+                        "type": "literal",
+                        "values": {}
+                      },
+                      "uptimeMs": {
+                        "def": {
+                          "type": "number",
+                          "checks": [
+                            {
+                              "def": {
+                                "type": "number",
+                                "check": "number_format",
+                                "abort": false,
+                                "format": "safeint"
+                              },
+                              "type": "number",
+                              "minValue": -9007199254740991,
+                              "maxValue": 9007199254740991,
+                              "isInt": true,
+                              "isFinite": true,
+                              "format": "safeint"
+                            },
+                            {}
+                          ]
+                        },
+                        "type": "number",
+                        "minValue": 0,
+                        "maxValue": 9007199254740991,
+                        "isInt": true,
+                        "isFinite": true,
+                        "format": "safeint"
+                      }
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/classes": {
+      "get": {
+        "summary": "List all class names (not implemented in v1)",
+        "tags": [
+          "classes"
+        ],
+        "responses": {
+          "501": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "def": {
+                    "type": "object",
+                    "shape": {
+                      "type": {
+                        "def": {
+                          "type": "string"
+                        },
+                        "type": "string",
+                        "format": null,
+                        "minLength": null,
+                        "maxLength": null
+                      },
+                      "title": {
+                        "def": {
+                          "type": "string"
+                        },
+                        "type": "string",
+                        "format": null,
+                        "minLength": null,
+                        "maxLength": null
+                      },
+                      "status": {
+                        "def": {
+                          "type": "literal",
+                          "values": [
+                            501
+                          ]
+                        },
+                        "type": "literal",
+                        "values": {}
+                      },
+                      "code": {
+                        "def": {
+                          "type": "literal",
+                          "values": [
+                            "NotImplemented"
+                          ]
+                        },
+                        "type": "literal",
+                        "values": {}
+                      },
+                      "detail": {
+                        "def": {
+                          "type": "string"
+                        },
+                        "type": "string",
+                        "format": null,
+                        "minLength": null,
+                        "maxLength": null
+                      }
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/classes/{name}/versions": {
+      "post": {
+        "summary": "Publish a class version (admin)",
+        "tags": [
+          "classes"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "def": {
+                  "type": "object",
+                  "shape": {
+                    "version": {
+                      "def": {
+                        "type": "string"
+                      },
+                      "type": "string",
+                      "format": null,
+                      "minLength": null,
+                      "maxLength": null
+                    },
+                    "source": {
+                      "def": {
+                        "type": "string"
+                      },
+                      "type": "string",
+                      "format": null,
+                      "minLength": null,
+                      "maxLength": null
+                    },
+                    "deps": {
+                      "def": {
+                        "type": "default",
+                        "innerType": {
+                          "def": {
+                            "type": "record",
+                            "keyType": {
+                              "def": {
+                                "type": "string"
+                              },
+                              "type": "string",
+                              "format": null,
+                              "minLength": null,
+                              "maxLength": null
+                            },
+                            "valueType": {
+                              "def": {
+                                "type": "string"
+                              },
+                              "type": "string",
+                              "format": null,
+                              "minLength": null,
+                              "maxLength": null
+                            }
+                          },
+                          "type": "record",
+                          "keyType": {
+                            "def": {
+                              "type": "string"
+                            },
+                            "type": "string",
+                            "format": null,
+                            "minLength": null,
+                            "maxLength": null
+                          },
+                          "valueType": {
+                            "def": {
+                              "type": "string"
+                            },
+                            "type": "string",
+                            "format": null,
+                            "minLength": null,
+                            "maxLength": null
+                          }
+                        },
+                        "defaultValue": {}
+                      },
+                      "type": "default"
+                    },
+                    "engines": {
+                      "def": {
+                        "type": "default",
+                        "innerType": {
+                          "def": {
+                            "type": "record",
+                            "keyType": {
+                              "def": {
+                                "type": "string"
+                              },
+                              "type": "string",
+                              "format": null,
+                              "minLength": null,
+                              "maxLength": null
+                            },
+                            "valueType": {
+                              "def": {
+                                "type": "string"
+                              },
+                              "type": "string",
+                              "format": null,
+                              "minLength": null,
+                              "maxLength": null
+                            }
+                          },
+                          "type": "record",
+                          "keyType": {
+                            "def": {
+                              "type": "string"
+                            },
+                            "type": "string",
+                            "format": null,
+                            "minLength": null,
+                            "maxLength": null
+                          },
+                          "valueType": {
+                            "def": {
+                              "type": "string"
+                            },
+                            "type": "string",
+                            "format": null,
+                            "minLength": null,
+                            "maxLength": null
+                          }
+                        },
+                        "defaultValue": {}
+                      },
+                      "type": "default"
+                    },
+                    "floating": {
+                      "def": {
+                        "type": "optional",
+                        "innerType": {
+                          "def": {
+                            "type": "boolean"
+                          },
+                          "type": "boolean"
+                        }
+                      },
+                      "type": "optional"
+                    },
+                    "eventSourced": {
+                      "def": {
+                        "type": "optional",
+                        "innerType": {
+                          "def": {
+                            "type": "boolean"
+                          },
+                          "type": "boolean"
+                        }
+                      },
+                      "type": "optional"
+                    }
+                  }
+                },
+                "type": "object"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "in": "path",
+            "name": "toJSONSchema",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "object",
+              "shape": {
+                "name": {
+                  "def": {
+                    "type": "string",
+                    "checks": [
+                      {}
+                    ]
+                  },
+                  "type": "string",
+                  "format": "regex",
+                  "minLength": null,
+                  "maxLength": null
+                }
+              }
+            },
+            "in": "path",
+            "name": "def",
+            "required": true
+          },
+          {
+            "schema": "object",
+            "in": "path",
+            "name": "type",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "parse",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "safeParse",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "parseAsync",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "safeParseAsync",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "spa",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "encode",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "decode",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "encodeAsync",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "decodeAsync",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "safeEncode",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "safeDecode",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "safeEncodeAsync",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "safeDecodeAsync",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "extend",
+            "required": true
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "def": {
+                    "type": "object",
+                    "shape": {
+                      "name": {
+                        "def": {
+                          "type": "string"
+                        },
+                        "type": "string",
+                        "format": null,
+                        "minLength": null,
+                        "maxLength": null
+                      },
+                      "version": {
+                        "def": {
+                          "type": "string"
+                        },
+                        "type": "string",
+                        "format": null,
+                        "minLength": null,
+                        "maxLength": null
+                      },
+                      "sha256": {
+                        "def": {
+                          "type": "string"
+                        },
+                        "type": "string",
+                        "format": null,
+                        "minLength": null,
+                        "maxLength": null
+                      }
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "summary": "List published versions of a class",
+        "tags": [
+          "classes"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "toJSONSchema",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "object",
+              "shape": {
+                "name": {
+                  "def": {
+                    "type": "string",
+                    "checks": [
+                      {}
+                    ]
+                  },
+                  "type": "string",
+                  "format": "regex",
+                  "minLength": null,
+                  "maxLength": null
+                }
+              }
+            },
+            "in": "path",
+            "name": "def",
+            "required": true
+          },
+          {
+            "schema": "object",
+            "in": "path",
+            "name": "type",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "parse",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "safeParse",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "parseAsync",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "safeParseAsync",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "spa",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "encode",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "decode",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "encodeAsync",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "decodeAsync",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "safeEncode",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "safeDecode",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "safeEncodeAsync",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "safeDecodeAsync",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "extend",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "def": {
+                    "type": "object",
+                    "shape": {
+                      "name": {
+                        "def": {
+                          "type": "string"
+                        },
+                        "type": "string",
+                        "format": null,
+                        "minLength": null,
+                        "maxLength": null
+                      },
+                      "versions": {
+                        "def": {
+                          "type": "array",
+                          "element": {
+                            "def": {
+                              "type": "object",
+                              "shape": {
+                                "name": {
+                                  "def": {
+                                    "type": "string"
+                                  },
+                                  "type": "string",
+                                  "format": null,
+                                  "minLength": null,
+                                  "maxLength": null
+                                },
+                                "version": {
+                                  "def": {
+                                    "type": "string"
+                                  },
+                                  "type": "string",
+                                  "format": null,
+                                  "minLength": null,
+                                  "maxLength": null
+                                },
+                                "sourceSha256": {
+                                  "def": {
+                                    "type": "string"
+                                  },
+                                  "type": "string",
+                                  "format": null,
+                                  "minLength": null,
+                                  "maxLength": null
+                                },
+                                "deps": {
+                                  "def": {
+                                    "type": "record",
+                                    "keyType": {
+                                      "def": {
+                                        "type": "string"
+                                      },
+                                      "type": "string",
+                                      "format": null,
+                                      "minLength": null,
+                                      "maxLength": null
+                                    },
+                                    "valueType": {
+                                      "def": {
+                                        "type": "string"
+                                      },
+                                      "type": "string",
+                                      "format": null,
+                                      "minLength": null,
+                                      "maxLength": null
+                                    }
+                                  },
+                                  "type": "record",
+                                  "keyType": {
+                                    "def": {
+                                      "type": "string"
+                                    },
+                                    "type": "string",
+                                    "format": null,
+                                    "minLength": null,
+                                    "maxLength": null
+                                  },
+                                  "valueType": {
+                                    "def": {
+                                      "type": "string"
+                                    },
+                                    "type": "string",
+                                    "format": null,
+                                    "minLength": null,
+                                    "maxLength": null
+                                  }
+                                },
+                                "engines": {
+                                  "def": {
+                                    "type": "record",
+                                    "keyType": {
+                                      "def": {
+                                        "type": "string"
+                                      },
+                                      "type": "string",
+                                      "format": null,
+                                      "minLength": null,
+                                      "maxLength": null
+                                    },
+                                    "valueType": {
+                                      "def": {
+                                        "type": "string"
+                                      },
+                                      "type": "string",
+                                      "format": null,
+                                      "minLength": null,
+                                      "maxLength": null
+                                    }
+                                  },
+                                  "type": "record",
+                                  "keyType": {
+                                    "def": {
+                                      "type": "string"
+                                    },
+                                    "type": "string",
+                                    "format": null,
+                                    "minLength": null,
+                                    "maxLength": null
+                                  },
+                                  "valueType": {
+                                    "def": {
+                                      "type": "string"
+                                    },
+                                    "type": "string",
+                                    "format": null,
+                                    "minLength": null,
+                                    "maxLength": null
+                                  }
+                                },
+                                "publishedAt": {
+                                  "def": {
+                                    "type": "number",
+                                    "checks": []
+                                  },
+                                  "type": "number",
+                                  "minValue": null,
+                                  "maxValue": null,
+                                  "isInt": false,
+                                  "isFinite": true,
+                                  "format": null
+                                },
+                                "deprecatedAt": {
+                                  "def": {
+                                    "type": "optional",
+                                    "innerType": {
+                                      "def": {
+                                        "type": "number",
+                                        "checks": []
+                                      },
+                                      "type": "number",
+                                      "minValue": null,
+                                      "maxValue": null,
+                                      "isInt": false,
+                                      "isFinite": true,
+                                      "format": null
+                                    }
+                                  },
+                                  "type": "optional"
+                                },
+                                "graceUntil": {
+                                  "def": {
+                                    "type": "optional",
+                                    "innerType": {
+                                      "def": {
+                                        "type": "number",
+                                        "checks": []
+                                      },
+                                      "type": "number",
+                                      "minValue": null,
+                                      "maxValue": null,
+                                      "isInt": false,
+                                      "isFinite": true,
+                                      "format": null
+                                    }
+                                  },
+                                  "type": "optional"
+                                },
+                                "signedBy": {
+                                  "def": {
+                                    "type": "optional",
+                                    "innerType": {
+                                      "def": {
+                                        "type": "string"
+                                      },
+                                      "type": "string",
+                                      "format": null,
+                                      "minLength": null,
+                                      "maxLength": null
+                                    }
+                                  },
+                                  "type": "optional"
+                                },
+                                "floating": {
+                                  "def": {
+                                    "type": "boolean"
+                                  },
+                                  "type": "boolean"
+                                },
+                                "eventSourced": {
+                                  "def": {
+                                    "type": "boolean"
+                                  },
+                                  "type": "boolean"
+                                }
+                              }
+                            },
+                            "type": "object"
+                          }
+                        },
+                        "type": "array",
+                        "element": {
+                          "def": {
+                            "type": "object",
+                            "shape": {
+                              "name": {
+                                "def": {
+                                  "type": "string"
+                                },
+                                "type": "string",
+                                "format": null,
+                                "minLength": null,
+                                "maxLength": null
+                              },
+                              "version": {
+                                "def": {
+                                  "type": "string"
+                                },
+                                "type": "string",
+                                "format": null,
+                                "minLength": null,
+                                "maxLength": null
+                              },
+                              "sourceSha256": {
+                                "def": {
+                                  "type": "string"
+                                },
+                                "type": "string",
+                                "format": null,
+                                "minLength": null,
+                                "maxLength": null
+                              },
+                              "deps": {
+                                "def": {
+                                  "type": "record",
+                                  "keyType": {
+                                    "def": {
+                                      "type": "string"
+                                    },
+                                    "type": "string",
+                                    "format": null,
+                                    "minLength": null,
+                                    "maxLength": null
+                                  },
+                                  "valueType": {
+                                    "def": {
+                                      "type": "string"
+                                    },
+                                    "type": "string",
+                                    "format": null,
+                                    "minLength": null,
+                                    "maxLength": null
+                                  }
+                                },
+                                "type": "record",
+                                "keyType": {
+                                  "def": {
+                                    "type": "string"
+                                  },
+                                  "type": "string",
+                                  "format": null,
+                                  "minLength": null,
+                                  "maxLength": null
+                                },
+                                "valueType": {
+                                  "def": {
+                                    "type": "string"
+                                  },
+                                  "type": "string",
+                                  "format": null,
+                                  "minLength": null,
+                                  "maxLength": null
+                                }
+                              },
+                              "engines": {
+                                "def": {
+                                  "type": "record",
+                                  "keyType": {
+                                    "def": {
+                                      "type": "string"
+                                    },
+                                    "type": "string",
+                                    "format": null,
+                                    "minLength": null,
+                                    "maxLength": null
+                                  },
+                                  "valueType": {
+                                    "def": {
+                                      "type": "string"
+                                    },
+                                    "type": "string",
+                                    "format": null,
+                                    "minLength": null,
+                                    "maxLength": null
+                                  }
+                                },
+                                "type": "record",
+                                "keyType": {
+                                  "def": {
+                                    "type": "string"
+                                  },
+                                  "type": "string",
+                                  "format": null,
+                                  "minLength": null,
+                                  "maxLength": null
+                                },
+                                "valueType": {
+                                  "def": {
+                                    "type": "string"
+                                  },
+                                  "type": "string",
+                                  "format": null,
+                                  "minLength": null,
+                                  "maxLength": null
+                                }
+                              },
+                              "publishedAt": {
+                                "def": {
+                                  "type": "number",
+                                  "checks": []
+                                },
+                                "type": "number",
+                                "minValue": null,
+                                "maxValue": null,
+                                "isInt": false,
+                                "isFinite": true,
+                                "format": null
+                              },
+                              "deprecatedAt": {
+                                "def": {
+                                  "type": "optional",
+                                  "innerType": {
+                                    "def": {
+                                      "type": "number",
+                                      "checks": []
+                                    },
+                                    "type": "number",
+                                    "minValue": null,
+                                    "maxValue": null,
+                                    "isInt": false,
+                                    "isFinite": true,
+                                    "format": null
+                                  }
+                                },
+                                "type": "optional"
+                              },
+                              "graceUntil": {
+                                "def": {
+                                  "type": "optional",
+                                  "innerType": {
+                                    "def": {
+                                      "type": "number",
+                                      "checks": []
+                                    },
+                                    "type": "number",
+                                    "minValue": null,
+                                    "maxValue": null,
+                                    "isInt": false,
+                                    "isFinite": true,
+                                    "format": null
+                                  }
+                                },
+                                "type": "optional"
+                              },
+                              "signedBy": {
+                                "def": {
+                                  "type": "optional",
+                                  "innerType": {
+                                    "def": {
+                                      "type": "string"
+                                    },
+                                    "type": "string",
+                                    "format": null,
+                                    "minLength": null,
+                                    "maxLength": null
+                                  }
+                                },
+                                "type": "optional"
+                              },
+                              "floating": {
+                                "def": {
+                                  "type": "boolean"
+                                },
+                                "type": "boolean"
+                              },
+                              "eventSourced": {
+                                "def": {
+                                  "type": "boolean"
+                                },
+                                "type": "boolean"
+                              }
+                            }
+                          },
+                          "type": "object"
+                        }
+                      }
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/classes/{name}/versions/{version}": {
+      "patch": {
+        "summary": "Deprecate a class version (admin)",
+        "tags": [
+          "classes"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "def": {
+                  "type": "object",
+                  "shape": {
+                    "deprecated": {
+                      "def": {
+                        "type": "literal",
+                        "values": [
+                          true
+                        ]
+                      },
+                      "type": "literal",
+                      "values": {}
+                    },
+                    "graceUntilMs": {
+                      "def": {
+                        "type": "optional",
+                        "innerType": {
+                          "def": {
+                            "type": "number",
+                            "checks": [
+                              {
+                                "def": {
+                                  "type": "number",
+                                  "check": "number_format",
+                                  "abort": false,
+                                  "format": "safeint"
+                                },
+                                "type": "number",
+                                "minValue": -9007199254740991,
+                                "maxValue": 9007199254740991,
+                                "isInt": true,
+                                "isFinite": true,
+                                "format": "safeint"
+                              },
+                              {}
+                            ]
+                          },
+                          "type": "number",
+                          "minValue": 0,
+                          "maxValue": 9007199254740991,
+                          "isInt": true,
+                          "isFinite": true,
+                          "format": "safeint"
+                        }
+                      },
+                      "type": "optional"
+                    }
+                  }
+                },
+                "type": "object"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "in": "path",
+            "name": "toJSONSchema",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "object",
+              "shape": {
+                "name": {
+                  "def": {
+                    "type": "string",
+                    "checks": [
+                      {}
+                    ]
+                  },
+                  "type": "string",
+                  "format": "regex",
+                  "minLength": null,
+                  "maxLength": null
+                },
+                "version": {
+                  "def": {
+                    "type": "string",
+                    "checks": [
+                      {}
+                    ]
+                  },
+                  "type": "string",
+                  "format": null,
+                  "minLength": 1,
+                  "maxLength": null
+                }
+              }
+            },
+            "in": "path",
+            "name": "def",
+            "required": true
+          },
+          {
+            "schema": "object",
+            "in": "path",
+            "name": "type",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "parse",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "safeParse",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "parseAsync",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "safeParseAsync",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "spa",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "encode",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "decode",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "encodeAsync",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "decodeAsync",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "safeEncode",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "safeDecode",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "safeEncodeAsync",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "safeDecodeAsync",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "def": {
+                    "type": "object",
+                    "shape": {
+                      "name": {
+                        "def": {
+                          "type": "string"
+                        },
+                        "type": "string",
+                        "format": null,
+                        "minLength": null,
+                        "maxLength": null
+                      },
+                      "version": {
+                        "def": {
+                          "type": "string"
+                        },
+                        "type": "string",
+                        "format": null,
+                        "minLength": null,
+                        "maxLength": null
+                      },
+                      "deprecated": {
+                        "def": {
+                          "type": "literal",
+                          "values": [
+                            true
+                          ]
+                        },
+                        "type": "literal",
+                        "values": {}
+                      },
+                      "graceUntilMs": {
+                        "def": {
+                          "type": "optional",
+                          "innerType": {
+                            "def": {
+                              "type": "number",
+                              "checks": []
+                            },
+                            "type": "number",
+                            "minValue": null,
+                            "maxValue": null,
+                            "isInt": false,
+                            "isFinite": true,
+                            "format": null
+                          }
+                        },
+                        "type": "optional"
+                      }
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/manifest": {
+      "get": {
+        "summary": "Resolve a fresh manifest",
+        "tags": [
+          "manifest"
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "toJSONSchema"
+          },
+          {
+            "schema": {
+              "type": "object",
+              "shape": {
+                "root": {
+                  "def": {
+                    "type": "optional",
+                    "innerType": {
+                      "def": {
+                        "type": "union",
+                        "options": [
+                          {
+                            "def": {
+                              "type": "string"
+                            },
+                            "type": "string",
+                            "format": null,
+                            "minLength": null,
+                            "maxLength": null
+                          },
+                          {
+                            "def": {
+                              "type": "array",
+                              "element": {
+                                "def": {
+                                  "type": "string"
+                                },
+                                "type": "string",
+                                "format": null,
+                                "minLength": null,
+                                "maxLength": null
+                              }
+                            },
+                            "type": "array",
+                            "element": {
+                              "def": {
+                                "type": "string"
+                              },
+                              "type": "string",
+                              "format": null,
+                              "minLength": null,
+                              "maxLength": null
+                            }
+                          }
+                        ]
+                      },
+                      "type": "union",
+                      "options": [
+                        {
+                          "def": {
+                            "type": "string"
+                          },
+                          "type": "string",
+                          "format": null,
+                          "minLength": null,
+                          "maxLength": null
+                        },
+                        {
+                          "def": {
+                            "type": "array",
+                            "element": {
+                              "def": {
+                                "type": "string"
+                              },
+                              "type": "string",
+                              "format": null,
+                              "minLength": null,
+                              "maxLength": null
+                            }
+                          },
+                          "type": "array",
+                          "element": {
+                            "def": {
+                              "type": "string"
+                            },
+                            "type": "string",
+                            "format": null,
+                            "minLength": null,
+                            "maxLength": null
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  "type": "optional"
+                },
+                "dep": {
+                  "def": {
+                    "type": "optional",
+                    "innerType": {
+                      "def": {
+                        "type": "union",
+                        "options": [
+                          {
+                            "def": {
+                              "type": "string"
+                            },
+                            "type": "string",
+                            "format": null,
+                            "minLength": null,
+                            "maxLength": null
+                          },
+                          {
+                            "def": {
+                              "type": "array",
+                              "element": {
+                                "def": {
+                                  "type": "string"
+                                },
+                                "type": "string",
+                                "format": null,
+                                "minLength": null,
+                                "maxLength": null
+                              }
+                            },
+                            "type": "array",
+                            "element": {
+                              "def": {
+                                "type": "string"
+                              },
+                              "type": "string",
+                              "format": null,
+                              "minLength": null,
+                              "maxLength": null
+                            }
+                          }
+                        ]
+                      },
+                      "type": "union",
+                      "options": [
+                        {
+                          "def": {
+                            "type": "string"
+                          },
+                          "type": "string",
+                          "format": null,
+                          "minLength": null,
+                          "maxLength": null
+                        },
+                        {
+                          "def": {
+                            "type": "array",
+                            "element": {
+                              "def": {
+                                "type": "string"
+                              },
+                              "type": "string",
+                              "format": null,
+                              "minLength": null,
+                              "maxLength": null
+                            }
+                          },
+                          "type": "array",
+                          "element": {
+                            "def": {
+                              "type": "string"
+                            },
+                            "type": "string",
+                            "format": null,
+                            "minLength": null,
+                            "maxLength": null
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  "type": "optional"
+                }
+              }
+            },
+            "in": "query",
+            "name": "def"
+          },
+          {
+            "schema": "object",
+            "in": "query",
+            "name": "type"
+          },
+          {
+            "in": "query",
+            "name": "parse"
+          },
+          {
+            "in": "query",
+            "name": "safeParse"
+          },
+          {
+            "in": "query",
+            "name": "parseAsync"
+          },
+          {
+            "in": "query",
+            "name": "safeParseAsync"
+          },
+          {
+            "in": "query",
+            "name": "spa"
+          },
+          {
+            "in": "query",
+            "name": "encode"
+          },
+          {
+            "in": "query",
+            "name": "decode"
+          },
+          {
+            "in": "query",
+            "name": "encodeAsync"
+          },
+          {
+            "in": "query",
+            "name": "decodeAsync"
+          },
+          {
+            "in": "query",
+            "name": "safeEncode"
+          },
+          {
+            "in": "query",
+            "name": "safeDecode"
+          },
+          {
+            "in": "query",
+            "name": "safeEncodeAsync"
+          },
+          {
+            "in": "query",
+            "name": "safeDecodeAsync"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "def": {
+                    "type": "object",
+                    "shape": {
+                      "sha256": {
+                        "def": {
+                          "type": "string"
+                        },
+                        "type": "string",
+                        "format": null,
+                        "minLength": null,
+                        "maxLength": null
+                      },
+                      "resolved": {
+                        "def": {
+                          "type": "record",
+                          "keyType": {
+                            "def": {
+                              "type": "string"
+                            },
+                            "type": "string",
+                            "format": null,
+                            "minLength": null,
+                            "maxLength": null
+                          },
+                          "valueType": {
+                            "def": {
+                              "type": "string"
+                            },
+                            "type": "string",
+                            "format": null,
+                            "minLength": null,
+                            "maxLength": null
+                          }
+                        },
+                        "type": "record",
+                        "keyType": {
+                          "def": {
+                            "type": "string"
+                          },
+                          "type": "string",
+                          "format": null,
+                          "minLength": null,
+                          "maxLength": null
+                        },
+                        "valueType": {
+                          "def": {
+                            "type": "string"
+                          },
+                          "type": "string",
+                          "format": null,
+                          "minLength": null,
+                          "maxLength": null
+                        }
+                      },
+                      "constraints": {
+                        "def": {
+                          "type": "record",
+                          "keyType": {
+                            "def": {
+                              "type": "string"
+                            },
+                            "type": "string",
+                            "format": null,
+                            "minLength": null,
+                            "maxLength": null
+                          },
+                          "valueType": {
+                            "def": {
+                              "type": "array",
+                              "element": {
+                                "def": {
+                                  "type": "object",
+                                  "shape": {
+                                    "range": {
+                                      "def": {
+                                        "type": "string"
+                                      },
+                                      "type": "string",
+                                      "format": null,
+                                      "minLength": null,
+                                      "maxLength": null
+                                    },
+                                    "path": {
+                                      "def": {
+                                        "type": "array",
+                                        "element": {
+                                          "def": {
+                                            "type": "string"
+                                          },
+                                          "type": "string",
+                                          "format": null,
+                                          "minLength": null,
+                                          "maxLength": null
+                                        }
+                                      },
+                                      "type": "array",
+                                      "element": {
+                                        "def": {
+                                          "type": "string"
+                                        },
+                                        "type": "string",
+                                        "format": null,
+                                        "minLength": null,
+                                        "maxLength": null
+                                      }
+                                    }
+                                  }
+                                },
+                                "type": "object"
+                              }
+                            },
+                            "type": "array",
+                            "element": {
+                              "def": {
+                                "type": "object",
+                                "shape": {
+                                  "range": {
+                                    "def": {
+                                      "type": "string"
+                                    },
+                                    "type": "string",
+                                    "format": null,
+                                    "minLength": null,
+                                    "maxLength": null
+                                  },
+                                  "path": {
+                                    "def": {
+                                      "type": "array",
+                                      "element": {
+                                        "def": {
+                                          "type": "string"
+                                        },
+                                        "type": "string",
+                                        "format": null,
+                                        "minLength": null,
+                                        "maxLength": null
+                                      }
+                                    },
+                                    "type": "array",
+                                    "element": {
+                                      "def": {
+                                        "type": "string"
+                                      },
+                                      "type": "string",
+                                      "format": null,
+                                      "minLength": null,
+                                      "maxLength": null
+                                    }
+                                  }
+                                }
+                              },
+                              "type": "object"
+                            }
+                          }
+                        },
+                        "type": "record",
+                        "keyType": {
+                          "def": {
+                            "type": "string"
+                          },
+                          "type": "string",
+                          "format": null,
+                          "minLength": null,
+                          "maxLength": null
+                        },
+                        "valueType": {
+                          "def": {
+                            "type": "array",
+                            "element": {
+                              "def": {
+                                "type": "object",
+                                "shape": {
+                                  "range": {
+                                    "def": {
+                                      "type": "string"
+                                    },
+                                    "type": "string",
+                                    "format": null,
+                                    "minLength": null,
+                                    "maxLength": null
+                                  },
+                                  "path": {
+                                    "def": {
+                                      "type": "array",
+                                      "element": {
+                                        "def": {
+                                          "type": "string"
+                                        },
+                                        "type": "string",
+                                        "format": null,
+                                        "minLength": null,
+                                        "maxLength": null
+                                      }
+                                    },
+                                    "type": "array",
+                                    "element": {
+                                      "def": {
+                                        "type": "string"
+                                      },
+                                      "type": "string",
+                                      "format": null,
+                                      "minLength": null,
+                                      "maxLength": null
+                                    }
+                                  }
+                                }
+                              },
+                              "type": "object"
+                            }
+                          },
+                          "type": "array",
+                          "element": {
+                            "def": {
+                              "type": "object",
+                              "shape": {
+                                "range": {
+                                  "def": {
+                                    "type": "string"
+                                  },
+                                  "type": "string",
+                                  "format": null,
+                                  "minLength": null,
+                                  "maxLength": null
+                                },
+                                "path": {
+                                  "def": {
+                                    "type": "array",
+                                    "element": {
+                                      "def": {
+                                        "type": "string"
+                                      },
+                                      "type": "string",
+                                      "format": null,
+                                      "minLength": null,
+                                      "maxLength": null
+                                    }
+                                  },
+                                  "type": "array",
+                                  "element": {
+                                    "def": {
+                                      "type": "string"
+                                    },
+                                    "type": "string",
+                                    "format": null,
+                                    "minLength": null,
+                                    "maxLength": null
+                                  }
+                                }
+                              }
+                            },
+                            "type": "object"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/manifest/{sha}": {
+      "get": {
+        "summary": "Retrieve a stored manifest",
+        "tags": [
+          "manifest"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "toJSONSchema",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "object",
+              "shape": {
+                "sha": {
+                  "def": {
+                    "type": "string",
+                    "checks": [
+                      {}
+                    ]
+                  },
+                  "type": "string",
+                  "format": "regex",
+                  "minLength": null,
+                  "maxLength": null
+                }
+              }
+            },
+            "in": "path",
+            "name": "def",
+            "required": true
+          },
+          {
+            "schema": "object",
+            "in": "path",
+            "name": "type",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "parse",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "safeParse",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "parseAsync",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "safeParseAsync",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "spa",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "encode",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "decode",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "encodeAsync",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "decodeAsync",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "safeEncode",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "safeDecode",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "safeEncodeAsync",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "safeDecodeAsync",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "def": {
+                    "type": "object",
+                    "shape": {
+                      "sha256": {
+                        "def": {
+                          "type": "string"
+                        },
+                        "type": "string",
+                        "format": null,
+                        "minLength": null,
+                        "maxLength": null
+                      },
+                      "resolved": {
+                        "def": {
+                          "type": "record",
+                          "keyType": {
+                            "def": {
+                              "type": "string"
+                            },
+                            "type": "string",
+                            "format": null,
+                            "minLength": null,
+                            "maxLength": null
+                          },
+                          "valueType": {
+                            "def": {
+                              "type": "string"
+                            },
+                            "type": "string",
+                            "format": null,
+                            "minLength": null,
+                            "maxLength": null
+                          }
+                        },
+                        "type": "record",
+                        "keyType": {
+                          "def": {
+                            "type": "string"
+                          },
+                          "type": "string",
+                          "format": null,
+                          "minLength": null,
+                          "maxLength": null
+                        },
+                        "valueType": {
+                          "def": {
+                            "type": "string"
+                          },
+                          "type": "string",
+                          "format": null,
+                          "minLength": null,
+                          "maxLength": null
+                        }
+                      }
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/manifests/in-use": {
+      "get": {
+        "summary": "Report which manifest shas are currently in use",
+        "tags": [
+          "admin"
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "def": {
+                    "type": "object",
+                    "shape": {
+                      "entries": {
+                        "def": {
+                          "type": "array",
+                          "element": {
+                            "def": {
+                              "type": "object",
+                              "shape": {
+                                "sha": {
+                                  "def": {
+                                    "type": "string"
+                                  },
+                                  "type": "string",
+                                  "format": null,
+                                  "minLength": null,
+                                  "maxLength": null
+                                },
+                                "count": {
+                                  "def": {
+                                    "type": "number",
+                                    "checks": []
+                                  },
+                                  "type": "number",
+                                  "minValue": null,
+                                  "maxValue": null,
+                                  "isInt": false,
+                                  "isFinite": true,
+                                  "format": null
+                                },
+                                "lastSeen": {
+                                  "def": {
+                                    "type": "number",
+                                    "checks": []
+                                  },
+                                  "type": "number",
+                                  "minValue": null,
+                                  "maxValue": null,
+                                  "isInt": false,
+                                  "isFinite": true,
+                                  "format": null
+                                },
+                                "resolved": {
+                                  "def": {
+                                    "type": "optional",
+                                    "innerType": {
+                                      "def": {
+                                        "type": "record",
+                                        "keyType": {
+                                          "def": {
+                                            "type": "string"
+                                          },
+                                          "type": "string",
+                                          "format": null,
+                                          "minLength": null,
+                                          "maxLength": null
+                                        },
+                                        "valueType": {
+                                          "def": {
+                                            "type": "string"
+                                          },
+                                          "type": "string",
+                                          "format": null,
+                                          "minLength": null,
+                                          "maxLength": null
+                                        }
+                                      },
+                                      "type": "record",
+                                      "keyType": {
+                                        "def": {
+                                          "type": "string"
+                                        },
+                                        "type": "string",
+                                        "format": null,
+                                        "minLength": null,
+                                        "maxLength": null
+                                      },
+                                      "valueType": {
+                                        "def": {
+                                          "type": "string"
+                                        },
+                                        "type": "string",
+                                        "format": null,
+                                        "minLength": null,
+                                        "maxLength": null
+                                      }
+                                    }
+                                  },
+                                  "type": "optional"
+                                }
+                              }
+                            },
+                            "type": "object"
+                          }
+                        },
+                        "type": "array",
+                        "element": {
+                          "def": {
+                            "type": "object",
+                            "shape": {
+                              "sha": {
+                                "def": {
+                                  "type": "string"
+                                },
+                                "type": "string",
+                                "format": null,
+                                "minLength": null,
+                                "maxLength": null
+                              },
+                              "count": {
+                                "def": {
+                                  "type": "number",
+                                  "checks": []
+                                },
+                                "type": "number",
+                                "minValue": null,
+                                "maxValue": null,
+                                "isInt": false,
+                                "isFinite": true,
+                                "format": null
+                              },
+                              "lastSeen": {
+                                "def": {
+                                  "type": "number",
+                                  "checks": []
+                                },
+                                "type": "number",
+                                "minValue": null,
+                                "maxValue": null,
+                                "isInt": false,
+                                "isFinite": true,
+                                "format": null
+                              },
+                              "resolved": {
+                                "def": {
+                                  "type": "optional",
+                                  "innerType": {
+                                    "def": {
+                                      "type": "record",
+                                      "keyType": {
+                                        "def": {
+                                          "type": "string"
+                                        },
+                                        "type": "string",
+                                        "format": null,
+                                        "minLength": null,
+                                        "maxLength": null
+                                      },
+                                      "valueType": {
+                                        "def": {
+                                          "type": "string"
+                                        },
+                                        "type": "string",
+                                        "format": null,
+                                        "minLength": null,
+                                        "maxLength": null
+                                      }
+                                    },
+                                    "type": "record",
+                                    "keyType": {
+                                      "def": {
+                                        "type": "string"
+                                      },
+                                      "type": "string",
+                                      "format": null,
+                                      "minLength": null,
+                                      "maxLength": null
+                                    },
+                                    "valueType": {
+                                      "def": {
+                                        "type": "string"
+                                      },
+                                      "type": "string",
+                                      "format": null,
+                                      "minLength": null,
+                                      "maxLength": null
+                                    }
+                                  }
+                                },
+                                "type": "optional"
+                              }
+                            }
+                          },
+                          "type": "object"
+                        }
+                      },
+                      "otherCount": {
+                        "def": {
+                          "type": "number",
+                          "checks": []
+                        },
+                        "type": "number",
+                        "minValue": null,
+                        "maxValue": null,
+                        "isInt": false,
+                        "isFinite": true,
+                        "format": null
+                      },
+                      "otherLastSeen": {
+                        "def": {
+                          "type": "number",
+                          "checks": []
+                        },
+                        "type": "number",
+                        "minValue": null,
+                        "maxValue": null,
+                        "isInt": false,
+                        "isFinite": true,
+                        "format": null
+                      }
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/actors/{class}": {
+      "post": {
+        "summary": "Create an actor (mints a fresh id; onInit fires on first call)",
+        "tags": [
+          "actors"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "def": {
+                  "type": "unknown"
+                },
+                "type": "unknown"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "in": "path",
+            "name": "toJSONSchema",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "object",
+              "shape": {
+                "class": {
+                  "def": {
+                    "type": "string",
+                    "checks": [
+                      {}
+                    ]
+                  },
+                  "type": "string",
+                  "format": "regex",
+                  "minLength": null,
+                  "maxLength": null
+                }
+              }
+            },
+            "in": "path",
+            "name": "def",
+            "required": true
+          },
+          {
+            "schema": "object",
+            "in": "path",
+            "name": "type",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "parse",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "safeParse",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "parseAsync",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "safeParseAsync",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "spa",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "encode",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "decode",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "encodeAsync",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "decodeAsync",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "safeEncode",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "safeDecode",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "safeEncodeAsync",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "safeDecodeAsync",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "extend",
+            "required": true
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "def": {
+                    "type": "object",
+                    "shape": {
+                      "class": {
+                        "def": {
+                          "type": "string"
+                        },
+                        "type": "string",
+                        "format": null,
+                        "minLength": null,
+                        "maxLength": null
+                      },
+                      "id": {
+                        "def": {
+                          "type": "string"
+                        },
+                        "type": "string",
+                        "format": null,
+                        "minLength": null,
+                        "maxLength": null
+                      },
+                      "manifest": {
+                        "def": {
+                          "type": "optional",
+                          "innerType": {
+                            "def": {
+                              "type": "string"
+                            },
+                            "type": "string",
+                            "format": null,
+                            "minLength": null,
+                            "maxLength": null
+                          }
+                        },
+                        "type": "optional"
+                      }
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/actors/{class}/{id}": {
+      "get": {
+        "summary": "Read the current snapshot of an actor",
+        "tags": [
+          "actors"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "toJSONSchema",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "object",
+              "shape": {
+                "class": {
+                  "def": {
+                    "type": "string",
+                    "checks": [
+                      {}
+                    ]
+                  },
+                  "type": "string",
+                  "format": "regex",
+                  "minLength": null,
+                  "maxLength": null
+                },
+                "id": {
+                  "def": {
+                    "type": "string",
+                    "checks": [
+                      {}
+                    ]
+                  },
+                  "type": "string",
+                  "format": null,
+                  "minLength": 1,
+                  "maxLength": null
+                }
+              }
+            },
+            "in": "path",
+            "name": "def",
+            "required": true
+          },
+          {
+            "schema": "object",
+            "in": "path",
+            "name": "type",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "parse",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "safeParse",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "parseAsync",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "safeParseAsync",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "spa",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "encode",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "decode",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "encodeAsync",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "decodeAsync",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "safeEncode",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "safeDecode",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "safeEncodeAsync",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "safeDecodeAsync",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "extend",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "def": {
+                    "type": "object",
+                    "shape": {
+                      "class": {
+                        "def": {
+                          "type": "string"
+                        },
+                        "type": "string",
+                        "format": null,
+                        "minLength": null,
+                        "maxLength": null
+                      },
+                      "id": {
+                        "def": {
+                          "type": "string"
+                        },
+                        "type": "string",
+                        "format": null,
+                        "minLength": null,
+                        "maxLength": null
+                      },
+                      "version": {
+                        "def": {
+                          "type": "string"
+                        },
+                        "type": "string",
+                        "format": null,
+                        "minLength": null,
+                        "maxLength": null
+                      },
+                      "seq": {
+                        "def": {
+                          "type": "string"
+                        },
+                        "type": "string",
+                        "format": null,
+                        "minLength": null,
+                        "maxLength": null
+                      },
+                      "state": {
+                        "def": {
+                          "type": "unknown"
+                        },
+                        "type": "unknown"
+                      }
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Tombstone an actor",
+        "tags": [
+          "actors"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "toJSONSchema",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "object",
+              "shape": {
+                "class": {
+                  "def": {
+                    "type": "string",
+                    "checks": [
+                      {}
+                    ]
+                  },
+                  "type": "string",
+                  "format": "regex",
+                  "minLength": null,
+                  "maxLength": null
+                },
+                "id": {
+                  "def": {
+                    "type": "string",
+                    "checks": [
+                      {}
+                    ]
+                  },
+                  "type": "string",
+                  "format": null,
+                  "minLength": 1,
+                  "maxLength": null
+                }
+              }
+            },
+            "in": "path",
+            "name": "def",
+            "required": true
+          },
+          {
+            "schema": "object",
+            "in": "path",
+            "name": "type",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "parse",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "safeParse",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "parseAsync",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "safeParseAsync",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "spa",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "encode",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "decode",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "encodeAsync",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "decodeAsync",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "safeEncode",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "safeDecode",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "safeEncodeAsync",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "safeDecodeAsync",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "extend",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "def": {
+                    "type": "object",
+                    "shape": {
+                      "class": {
+                        "def": {
+                          "type": "string"
+                        },
+                        "type": "string",
+                        "format": null,
+                        "minLength": null,
+                        "maxLength": null
+                      },
+                      "id": {
+                        "def": {
+                          "type": "string"
+                        },
+                        "type": "string",
+                        "format": null,
+                        "minLength": null,
+                        "maxLength": null
+                      },
+                      "tombstoned": {
+                        "def": {
+                          "type": "literal",
+                          "values": [
+                            true
+                          ]
+                        },
+                        "type": "literal",
+                        "values": {}
+                      }
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/actors/{class}/{id}/{method}": {
+      "post": {
+        "summary": "Invoke a handler on an actor",
+        "tags": [
+          "actors"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "def": {
+                  "type": "unknown"
+                },
+                "type": "unknown"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "in": "path",
+            "name": "toJSONSchema",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "object",
+              "shape": {
+                "class": {
+                  "def": {
+                    "type": "string",
+                    "checks": [
+                      {}
+                    ]
+                  },
+                  "type": "string",
+                  "format": "regex",
+                  "minLength": null,
+                  "maxLength": null
+                },
+                "id": {
+                  "def": {
+                    "type": "string",
+                    "checks": [
+                      {}
+                    ]
+                  },
+                  "type": "string",
+                  "format": null,
+                  "minLength": 1,
+                  "maxLength": null
+                },
+                "method": {
+                  "def": {
+                    "type": "string",
+                    "checks": [
+                      {}
+                    ]
+                  },
+                  "type": "string",
+                  "format": "regex",
+                  "minLength": null,
+                  "maxLength": null
+                }
+              }
+            },
+            "in": "path",
+            "name": "def",
+            "required": true
+          },
+          {
+            "schema": "object",
+            "in": "path",
+            "name": "type",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "parse",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "safeParse",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "parseAsync",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "safeParseAsync",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "spa",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "encode",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "decode",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "encodeAsync",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "decodeAsync",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "safeEncode",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "safeDecode",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "safeEncodeAsync",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "safeDecodeAsync",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "def": {
+                    "type": "object",
+                    "shape": {
+                      "class": {
+                        "def": {
+                          "type": "string"
+                        },
+                        "type": "string",
+                        "format": null,
+                        "minLength": null,
+                        "maxLength": null
+                      },
+                      "id": {
+                        "def": {
+                          "type": "string"
+                        },
+                        "type": "string",
+                        "format": null,
+                        "minLength": null,
+                        "maxLength": null
+                      },
+                      "method": {
+                        "def": {
+                          "type": "string"
+                        },
+                        "type": "string",
+                        "format": null,
+                        "minLength": null,
+                        "maxLength": null
+                      },
+                      "result": {
+                        "def": {
+                          "type": "unknown"
+                        },
+                        "type": "unknown"
+                      },
+                      "manifest": {
+                        "def": {
+                          "type": "optional",
+                          "innerType": {
+                            "def": {
+                              "type": "string"
+                            },
+                            "type": "string",
+                            "format": null,
+                            "minLength": null,
+                            "maxLength": null
+                          }
+                        },
+                        "type": "optional"
+                      }
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/run": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/upload": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "health"
+    },
+    {
+      "name": "classes"
+    },
+    {
+      "name": "manifest"
+    },
+    {
+      "name": "actors"
+    },
+    {
+      "name": "admin"
+    },
+    {
+      "name": "legacy"
+    }
+  ]
+}

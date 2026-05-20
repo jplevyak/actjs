@@ -1,3 +1,4 @@
+import type { ActjsHost } from './runtime/host-bridge.js';
 import type { ActorId } from './types/ids.js';
 
 /**
@@ -19,6 +20,13 @@ export abstract class Actor<S extends object = object> {
 
   /** Populated by the runtime when this actor is materialized. */
   actor_id!: ActorId;
+
+  /**
+   * Per-instance runtime bridge. The ActorHost assigns this on
+   * activate so handlers can do `this.actjs.call(ref, ...)`. Unit
+   * tests that bypass the Runtime won't have it set.
+   */
+  actjs?: ActjsHost;
 
   /** Optional one-time initialization on `create`. */
   onInit?(args: unknown): Promise<void> | void;

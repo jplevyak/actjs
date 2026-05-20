@@ -3,3 +3,6 @@ node_modules/
 coverage/
 *.tsbuildinfo
 package-lock.json
+# Snapshot files written by tests; their format is set by the writer
+# (JSON.stringify with 2-space indent), not by Prettier.
+tests/fixtures/

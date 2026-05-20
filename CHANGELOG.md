@@ -6,6 +6,86 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — Phase 5.2 (WebSocket / JSON-RPC)
+
+- **`/v1/ws` endpoint** speaking JSON-RPC 2.0. Methods:
+  - `actor.call(class, id, method, args)` → `{result}`.
+  - `actor.subscribe(class, id)` → `{subscriptionId}`. Server immediately replies with an `actor.event` notification of kind `snapshot`.
+  - `actor.unsubscribe(subscriptionId)` → `{ok}`.
+- **`actor.event` notifications** delivered per-subscription:
+  - `snapshot` — full state, sent once on subscribe.
+  - `patch` — RFC 6902 JSON Patch ops generated via `fast-json-patch` against the prior state (SWM actors).
+  - `event` — the events appended in the commit + the running ES `seq` as a decimal string (ES actors).
+  - `tombstone` — sent on DELETE; the subscription is dropped immediately after.
+- **`SubscriptionRegistry`** (`src/server/subscription-registry.ts`) decouples subscription bookkeeping from the WS transport. Per-actor cap defaults to 1000 (configurable via `buildApp({ maxSubscribersPerActor })`); over the cap `actor.subscribe` rejects with JSON-RPC error code `-32000` + `data.code: 'SubscriberLimit'`.
+- **Commit hooks on `ActorHost`** — `onCommit(listener)` returns an unsubscribe fn; SWM emits `{kind: 'patch', patch, state}` via a pre-handler `structuredClone` + post-commit `compare`, ES emits `{kind: 'event', events, seq, state}`. `notifyTombstone()` is invoked by `runtime.tombstone(id)`, which the DELETE route now uses so subscribers see the tombstone before the durable mirror is updated.
+- **Heartbeat** — server pings every 30s; the connection is closed with code `1001 heartbeat timeout` if no pong arrives within 90s. Override via `wsPingIntervalMs` / `wsPingTimeoutMs` on `buildApp`.
+- **bigint serialization** — the runtime's `seq` is sent as a decimal string in `actor.event` params (`seq?: string`). JSON-RPC payloads carry no bigint values.
+- **Plugins added**: `@fastify/websocket`, `fast-json-patch`.
+
+### Deferred (Phase 5.2)
+
+- **Reconnect / replay window.** A flaky client gets a fresh `snapshot` on reconnect; resume-from-seq belongs to the Phase 6.2 SDK + a follow-up runtime hook.
+- **Manifest pin over WS.** Pin validation today runs only on REST. Phase 5.4 will close this together with per-call activation-against-pin.
+- **Patch-vs-snapshot byte heuristic.** v1 always sends patches; a metric in Phase 8.1 will measure where the heuristic would fire before we implement it.
+
+### Changed — Phase 5.1 (Fastify + REST)
+
+- **Express → Fastify.** The HTTP layer is now Fastify with the Zod type provider; routes are validated and typed end-to-end from their Zod schemas. Express, multer, and their `@types/*` packages were removed from `dependencies`.
+- **Server reorganized** under `src/server/`:
+  - `app.ts` — `buildApp({driver, runtime, ...})` factory.
+  - `errors.ts` — RFC 7807 problem-detail mapper covering every framework exception (DepConflict, MailboxFull, ManifestRegression, ClassVersionExpired/Gone, SchemaInvalid, ForbiddenImport, …). Responses use `application/problem+json`.
+  - `hooks/pin.ts` — port of the Phase 4.3 pin middleware to a Fastify preHandler. Returns 400 `ManifestUnknown` / 410 `Gone` / 200 with `Warning: 299`.
+  - `hooks/idempotency.ts` — `Idempotency-Key` preHandler + onSend pair. 24h TTL via the storage driver. Replayed responses set `Idempotency-Replayed: true` and echo the original key.
+  - `routes/health.ts`, `routes/classes.ts`, `routes/manifest.ts`, `routes/admin.ts`, `routes/actors.ts`, `routes/legacy.ts`.
+- **New actor REST routes**:
+  - `POST   /v1/actors/:class` — mint a fresh actor id.
+  - `GET    /v1/actors/:class/:id` — return the actor's snapshot (404 `ActorNotFound` when none).
+  - `POST   /v1/actors/:class/:id/:method` — invoke a handler; response carries `{class, id, method, result, manifest?}`.
+  - `DELETE /v1/actors/:class/:id` — tombstone.
+- **New `GET /v1/health`** + OpenAPI 3.1 doc at `GET /openapi.json` via `@fastify/swagger`. The committed snapshot at `tests/fixtures/openapi.json` is byte-compared on every test run; refresh with `UPDATE_OPENAPI=1 npm test`.
+- **Legacy routes ported** (`GET /`, `POST /run`, `POST /upload`) so `demo.bash` keeps working. The legacy `gact.ts` runtime is unchanged.
+- `top.ts` was rewritten — fewer than 50 lines. Boots a `ValkeyPgStorageDriver` when `DATABASE_URL` is set, otherwise a `MemoryStorageDriver` with a startup warning.
+
+### Deferred (cross-phase)
+
+- **Per-call activation against the pinned manifest.** Phase 4.3 carved this out for Phase 5.1; it turned out to cut across Phase 4.2's sticky/floating logic and double the size of this phase. Pin is validated + observed today; threading the manifest into `runtime.call` activation is queued for a Phase 5.4 follow-up.
+
+### Added — Phase 4.3 (Client-pinned manifests)
+
+- **`ManifestUsageTracker`** (`src/v1/manifest-tracker.ts`): in-process per-sha counter + lastSeen, with a top-N (default 128) cap that rolls overflow into an `_other` bucket. Reports include the resolved version map for each sha. Phase 8.1 will surface this as `clients_by_manifest{sha}` Prometheus gauge.
+- **Pin middleware** (`src/v1/pin-middleware.ts`): reads `X-Actjs-Manifest`, validates against `driver.loadManifest`, records into the tracker, classifies every pinned `(class, version)` for deprecation state, and applies the lifecycle semantics:
+  - Unknown sha → **400** `ManifestUnknown` (short-circuits).
+  - Pin references a version past `grace_until` → **410 Gone** with the offending refs.
+  - Pin references a deprecated-but-in-grace version → request proceeds; response carries `Warning: 299 - "VersionDeprecated <refs>"`.
+  - Valid pin → `req.manifestPin` populated for downstream handlers.
+  - lastSeen is updated via a 1/100 sampled `driver.saveManifest` call (no extra writes per request).
+- **New routes**:
+  - `GET /v1/manifest/:sha` — retrieve a stored manifest by its sha.
+  - `GET /v1/admin/manifests/in-use` (admin) — returns the tracker report; this is what `actctl manifest in-use` will call (Phase 8.2).
+- `registerV1Routes(app, driver, options?)` now returns `{ tracker }` so the same tracker can be threaded into Phase 8.1 metrics.
+- **Loader grace-window backstop**: `ClassLoader.load` refuses to load a class version whose `graceUntil` has passed (new `ClassVersionExpired` error). The pin middleware returns 410 before that path is reached; this is the runtime safety net for direct registration code paths.
+- 13 new tests across `tests/v1/manifest-tracker.test.ts`, `tests/v1/manifest-pin.test.ts`, and `tests/runtime/loader-grace.test.ts`.
+
+### Added — Phase 4.2 (Loader & version policy)
+
+- **`ClassLoader`** (`src/runtime/loader.ts`): fetches TypeScript source from the storage driver, transpiles via `ts.transpileModule`, evaluates the JS as the body of `async function (actjs) { ... }` with `CLASS_KIT` injected, returns the class constructor. LRU cache keyed by `sha256(source)` (cap 256, refcount-aware so live-actor entries are never evicted; also skips the just-inserted entry to prevent self-eviction under one-cap-one-refcount loads). New errors: `ClassSourceNotFound`, `CompileError`.
+- **`CLASS_KIT`** (`src/runtime/class-kit.ts`): frozen object exposing `Actor` / `EventSourced` / `Replica` / `handler`. This is the _compile-time_ `actjs` — distinct from the per-instance `this.actjs` bridge below.
+- **Host bridge** (`src/runtime/host-bridge.ts`): `ActjsHost` interface + `makeBridge(options)`. Methods: `self`, `call`, `tell`, `scheduleAt`, `now`, `log`, `abort` (throws `ActorAbort`). Outbound `call` / `tell` / `scheduleAt` are injected callbacks; the bridge has no direct Runtime reference, so unit tests can omit `outbound` and the bridge falls back to a thrower.
+- **`Actor.actjs`** field — populated by `ActorHost` on activation; handlers use `this.actjs.call(...)` etc.
+- **Sticky-by-default activation** in `ActorHost`:
+  - `ActorClassRegistration.floating?: boolean` (default `false`).
+  - On activate, `resolveCtor(persisted)` picks the constructor:
+    - persisted == registered → registered ctor.
+    - persisted < registered + floating: false (sticky default) → load older ctor via `ClassLoader`.
+    - persisted < registered + floating: true → registered ctor + run `migrate`.
+    - persisted > registered → throw `ManifestRegression` (refuses to run older code against newer state).
+  - Snapshots are now stamped with `runningVersion` (the version actually executing), so sticky activations preserve the persisted version stamp.
+  - New host metric: nothing — covered by `migrationsApplied`.
+- **`Runtime`** owns the `ClassLoader`; `Directory` wires it into every `ActorHost` along with the `outbound` callbacks for the bridge.
+- **Publisher forbids top-level `import` / `export`** statements (`ForbiddenImport` error). The function-body source format doesn't support module syntax; rejecting at publish catches the bug early.
+- **19 new tests** across `tests/runtime/loader.test.ts`, `tests/runtime/host-bridge.test.ts`, `tests/runtime/version-policy.test.ts`, `tests/registry/forbidden-imports.test.ts` (loader cache + sha dedup + two-version coexistence + LRU + refcount; bridge methods + cross-actor `call` round-trip; sticky / floating / ManifestRegression; import lint accepts no-imports and rejects various forms incl. cases inside line/block comments correctly).
+
 ### Added — Phase 4.1 (Publish & resolve)
 
 - **Resolver** (`src/registry/resolver.ts`): pure async function that walks a list of root constraints over an injected `CatalogLookup`, accumulates ranges per class, picks the highest non-deprecated version satisfying every range, and re-walks deps when picks change. Throws structured `DepConflict` (with the cause path) on incompatible ranges, `ClassNotFound`, and `LimitExceeded` past 16-deep / 256-node caps.

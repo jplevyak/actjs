@@ -10,6 +10,7 @@ import type { ActorId, ClassName, Version } from '../types/ids.js';
 
 import { Directory } from './directory.js';
 import { type ActorClassRegistration, type ActorHost } from './host.js';
+import { ClassLoader } from './loader.js';
 import { ReminderDispatcher, type ReminderDispatcherOptions } from './reminder-dispatcher.js';
 
 export interface RegisterClassOptions {
@@ -22,6 +23,13 @@ export interface RegisterClassOptions {
   readonly snapshotDebounceMs?: number;
   /** ES only: snapshot every N events (default 100). */
   readonly snapshotEveryNEvents?: number;
+  /**
+   * `true` to enable floating activation: every activate runs the
+   * registered version and migrates older snapshots. Default `false`
+   * (sticky — older actors load their original version via the
+   * loader).
+   */
+  readonly floating?: boolean;
 }
 
 export interface RuntimeOptions {
@@ -32,12 +40,14 @@ export class Runtime {
   private readonly classes = new Map<ClassName, ActorClassRegistration>();
   private readonly directory: Directory;
   readonly reminderDispatcher: ReminderDispatcher;
+  readonly loader: ClassLoader;
 
   constructor(
     private readonly driver: StorageDriver,
     options: RuntimeOptions = {},
   ) {
-    this.directory = new Directory(driver, this.classes);
+    this.loader = new ClassLoader(driver);
+    this.directory = new Directory(driver, this.classes, this.loader);
     this.reminderDispatcher = new ReminderDispatcher(
       driver,
       async (className, actorId, type, payload) => {
@@ -61,6 +71,7 @@ export class Runtime {
       ...(opts.snapshotEveryNEvents !== undefined
         ? { snapshotEveryNEvents: opts.snapshotEveryNEvents }
         : {}),
+      ...(opts.floating !== undefined ? { floating: opts.floating } : {}),
     };
     this.classes.set(opts.name, reg);
   }
@@ -127,6 +138,26 @@ export class Runtime {
   /** Currently-active actor count. */
   liveCount(): number {
     return this.directory.liveCount();
+  }
+
+  /**
+   * Materialize and return the actor host. Used by the subscription
+   * registry to attach commit listeners; not intended for application
+   * code, which should go through tell/call.
+   */
+  async getHost(className: ClassName, id: ActorId): Promise<ActorHost> {
+    return this.directory.resolve(id, className);
+  }
+
+  /**
+   * Tombstone an actor. Notifies any attached subscribers before the
+   * driver-level tombstone so the WS clients see the `tombstone`
+   * notification, then evicts the host.
+   */
+  async tombstone(id: ActorId): Promise<void> {
+    const live = this.directory.getLive(id);
+    if (live) live.notifyTombstone();
+    await this.driver.tombstoneActor(id);
   }
 
   /** Graceful shutdown: stop the dispatcher, deactivate every actor. */

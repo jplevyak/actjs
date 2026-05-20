@@ -20,6 +20,7 @@ export {
   InvalidDepRange,
   IncompatibleEngine,
   SyntaxInvalid,
+  ForbiddenImport,
   SERVER_ACTJS_VERSION,
   type PublishInput,
 } from './publisher.js';

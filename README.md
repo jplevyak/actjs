@@ -343,6 +343,106 @@ Auth is currently a placeholder: any request carrying
 `X-Actjs-Admin: 1` is treated as admin. Phase 5.3 will replace
 this with a BYO `auth(req)` hook.
 
+### Actor REST + idempotency (new in 0.3, Phase 5.1)
+
+The HTTP layer is Fastify-based with Zod-validated routes and an
+OpenAPI 3.1 document at `GET /openapi.json`. Actor CRUD lives at
+`/v1/actors/...`:
+
+```bash
+# Create an actor (mints a fresh id; onInit fires on first call).
+curl -X POST http://127.0.0.1:3000/v1/actors/Counter -d '{}' \
+  -H "Content-Type: application/json"
+# → 201 { class: "Counter", id: "0190..." }
+
+# Invoke a handler.
+curl -X POST http://127.0.0.1:3000/v1/actors/Counter/<id>/increment \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: my-retry-key" \
+  -d '{"by": 5}'
+# → 200 { result: 5, ... }
+
+# Replay with the same Idempotency-Key returns the original response.
+# Response carries `Idempotency-Replayed: true`.
+
+# Read the snapshot.
+curl http://127.0.0.1:3000/v1/actors/Counter/<id>
+
+# Tombstone.
+curl -X DELETE http://127.0.0.1:3000/v1/actors/Counter/<id>
+```
+
+Errors use `application/problem+json` with a stable `code` field:
+`DepConflict`, `ManifestUnknown`, `Gone`, `Forbidden`, `MailboxFull`,
+`SchemaInvalid`, `SyntaxInvalid`, `ManifestRegression`, etc. The
+SDK switches on `code`, not on `status` or `title`.
+
+### Real-time subscriptions over WebSocket (new in 0.3, Phase 5.2)
+
+A single endpoint at `/v1/ws` speaks JSON-RPC 2.0 and multiplexes
+calls + subscriptions. Subscribing to an SWM actor (`Counter` above)
+delivers an initial `snapshot` then an RFC 6902 `patch` per commit;
+subscribing to an `EventSourced` actor (e.g. `Ledger`) delivers
+`event` notifications carrying the appended events and the running
+`seq` (decimal string — bigints aren't valid JSON):
+
+```js
+const ws = new WebSocket('ws://127.0.0.1:3000/v1/ws');
+ws.onmessage = (m) => console.log(JSON.parse(m.data));
+ws.send(
+  JSON.stringify({
+    jsonrpc: '2.0',
+    id: 1,
+    method: 'actor.subscribe',
+    params: { class: 'Counter', id: '<actor-id>' },
+  }),
+);
+// ← { id: 1, result: { subscriptionId: '...' } }
+// ← { method: 'actor.event', params: { kind: 'snapshot', data: { value: 0 } } }
+// ← { method: 'actor.event', params: { kind: 'patch', patch: [{op:'replace', path:'/value', value:1}] } }
+```
+
+`actor.call(class, id, method, args)` and
+`actor.unsubscribe(subscriptionId)` round out the method set. The
+server pings every 30 s; the connection closes with `1001
+heartbeat timeout` if no pong arrives within 90 s. A per-actor
+subscriber cap (default 1000) rejects further `actor.subscribe`
+calls with a JSON-RPC error (`data.code: 'SubscriberLimit'`).
+
+Pinning the manifest over a WS connection and resuming from a
+last-seen `seq` after a reconnect are queued for Phase 5.4 and the
+Phase 6.2 SDK respectively; today a reconnecting client gets a
+fresh `snapshot` and resumes from there.
+
+### Client-pinned manifests (new in 0.3, Phase 4.3)
+
+Once a manifest has been resolved, a client can pin subsequent
+requests to that exact resolution by sending its sha back as
+`X-Actjs-Manifest`:
+
+```bash
+SHA=$(curl -s 'http://127.0.0.1:3000/v1/manifest?root=Cart@1.4.2' \
+        | jq -r .sha256)
+
+curl http://127.0.0.1:3000/v1/manifest/$SHA \
+  -H "X-Actjs-Manifest: $SHA"
+```
+
+The server validates the pin, records the usage in an in-process
+tracker, and applies the deprecation lifecycle:
+
+| Pin status                          | Response                                                   |
+| ----------------------------------- | ---------------------------------------------------------- |
+| Unknown sha                         | 400 `ManifestUnknown`                                      |
+| Sha references a deprecated version | 200 with `Warning: 299 - "VersionDeprecated <ref>"` header |
+| Sha references an expired version   | 410 `Gone` with the offending refs                         |
+| Healthy                             | 200, no warning                                            |
+
+Operators see which shas are in use via
+`GET /v1/admin/manifests/in-use` (admin-gated). Phase 8.2 exposes
+this as `actctl manifest in-use` and Phase 8.1 surfaces a
+`clients_by_manifest{sha}` Prometheus gauge.
+
 ## Demo
 
 `./demo.bash` walks through the API end-to-end against a running server:

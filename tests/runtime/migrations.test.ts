@@ -68,7 +68,9 @@ describe('SWM migration on version mismatch', () => {
       await rt.shutdown();
     }
 
-    // Phase 2: register the new class as v2 and re-activate.
+    // Phase 2: register the new class as v2 and re-activate. Floating
+    // is required for migrate-on-activate; under sticky-by-default the
+    // older snapshot would load the older ctor via the registry.
     {
       const rt = new Runtime(driver);
       rt.register({
@@ -76,6 +78,7 @@ describe('SWM migration on version mismatch', () => {
         version: asVersion('2.0.0'),
         ctor: CartV2,
         snapshotDebounceMs: 2,
+        floating: true,
       });
       const got = await rt.call<CartV2State>(asClassName('Cart'), id, 'read', {});
       expect(got.items).toBe(7);
@@ -120,6 +123,8 @@ describe('SWM migration on version mismatch', () => {
     }
 
     // Reactivate as v1.1.0 with the SAME ctor (no migrate function).
+    // Floating opt-in so the snapshot stamp gets updated; sticky default
+    // would load v1.0.0 from the (absent) loader and throw.
     {
       const rt = new Runtime(driver);
       rt.register({
@@ -127,6 +132,7 @@ describe('SWM migration on version mismatch', () => {
         version: asVersion('1.1.0'),
         ctor: CartV1,
         snapshotDebounceMs: 2,
+        floating: true,
       });
       // No 'read' handler on CartV1, but we can confirm the snapshot
       // gets re-stamped by checking the driver after deactivate.
@@ -240,6 +246,7 @@ describe('ES migration via migrateEvent', () => {
         version: asVersion('2.0.0'),
         ctor: LedgerV2,
         snapshotEveryNEvents: 100,
+        floating: true,
       });
       // Force activation by calling balance (empty events).
       await rt.call(asClassName('Ledger'), id, 'balance', {});

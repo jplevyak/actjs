@@ -26,85 +26,81 @@ their tests.
 
 ### Postgres schema & migrations
 
-- [ ] Migration tooling chosen and wired up (`node-pg-migrate`,
-      `drizzle-kit`, `kysely`, or hand-rolled `.sql` files — see ADR).
-- [ ] Migration 0001 creates the schema from PLAN.md Phase 2a:
-  - [ ] `actor` table + `actor_tags_gin` + `actor_class_idx`.
-  - [ ] `actor_snapshot` (PK on `(actor_id, seq)`).
-  - [ ] `actor_event` partitioned by `RANGE (ts)`; default partition
-        plus one monthly partition initialized.
-  - [ ] `class_version` + `class_version_active` partial index.
-  - [ ] `class_blob`.
-  - [ ] `manifest`.
-  - [ ] `audit`.
-- [ ] Down-migration that drops all of the above cleanly.
-- [ ] CI runs the up + down + up sequence on a fresh PG instance.
+- [x] Migration tooling: raw `.sql` files + a 120-line runner
+      (`src/storage/migrate.ts`).
+- [x] Migration 0001 creates the schema:
+  - [x] `actor` + `actor_tags_gin` + `actor_class_idx`.
+  - [x] `actor_snapshot` (PK on `(actor_id, seq)`).
+  - [x] `actor_event` partitioned by `RANGE (ts)` with default
+        partition + bootstrap current-month partition (the
+        production cron is operator-side).
+  - [x] `class_version` + `class_version_active` partial index.
+  - [x] `class_blob`.
+  - [x] `manifest`.
+  - [x] `audit`.
+- [x] Down-migration drops cleanly.
+- [ ] CI runs the up + down + up cycle. _(The conformance job
+      applies migrations via `init()` and resets via
+      `__resetForTests`; a dedicated up→down→up smoke test is
+      not wired yet — punt to Phase 8.2's operator runbook.)_
 
 ### Valkey layout
 
-- [ ] Key-naming module that produces the keys in PLAN.md Phase 2b
-      (`actor:<id>:hot`, `actor:<id>:inbox`, `reminders`,
-      `manifest:<sha>`, `idem:<key>`, `class:<name>:meta`,
-      `class:<name>:v:<ver>`, `blob:<sha>`).
-- [ ] Encoder/decoder for the snapshot blob (`zstd` compress +
-      base64 only if needed for transport; raw bytes preferred).
-- [ ] AOF + RDB defaults documented in `ops/valkey.conf`.
+- [x] `src/storage/keys.ts` produces every Phase 2b key.
+- [x] `src/storage/codec.ts` — gzip via `node:zlib` (ADR picked
+      gzip over zstd to avoid the native dep; zstd revisits when
+      Node 22 lands). 64 KiB oversize warning.
+- [x] AOF + RDB defaults in `ops/valkey.conf`.
 
 ### StorageDriver interface
 
-- [ ] `src/storage/driver.ts` — interface as sketched in PLAN.md
-      Phase 2c, plus:
-  - [ ] `getClassSource(name, version): Promise<Buffer | null>`
-  - [ ] `listClassVersions(name): Promise<ClassVersion[]>`
-  - [ ] `loadManifest(sha): Promise<Manifest | null>`
-  - [ ] `saveManifest(sha, resolved): Promise<void>`
-  - [ ] `loadIdempotency(key): Promise<unknown | null>`
-  - [ ] `saveIdempotency(key, response, ttlMs): Promise<void>`
-  - [ ] `appendAudit(entry): Promise<void>`
-- [ ] `src/storage/valkey-pg.ts` — production driver. PG = source of
-      truth for snapshots, events, classes, audit. Valkey = hot cache
-      for snapshots, inbox stream, reminders, manifest cache, idem.
-- [ ] `src/storage/memory.ts` — in-memory driver used by unit tests.
-      Lives behind the same interface so tests don't need PG/Valkey.
+- [x] `src/storage/driver.ts` covering snapshots, events, reminders,
+      class versions + content-addressed source, manifests,
+      idempotency, audit, lifecycle. Inbox primitives were added in
+      Phase 3.1.
+- [x] `src/storage/valkey-pg.ts` — production driver.
+- [x] `src/storage/memory.ts` — in-memory driver.
 
 ### Tests
 
-- [ ] Schema round-trip: write each row type, read it back, assert
-      shape.
-- [ ] Partition-pruning sanity: events queried by `actor_id` and a
-      time range don't scan all partitions.
-- [ ] Stream durability: write to `actor:<id>:inbox`, restart Valkey
-      with AOF on, read remaining entries.
-- [ ] Conformance suite: a shared test harness runs the same call
-      sequence against `valkey-pg` and `memory` drivers and asserts
-      identical observable behavior.
-- [ ] Property test: random sequences of `save/load/append/read`
-      preserve invariants (no event with `seq <= snapshot.seq`,
-      monotonic seq per actor, etc.).
+- [x] Schema round-trip via the conformance suite.
+- [ ] Partition-pruning sanity test. _(Defer to Phase 8.1 — needs
+      `EXPLAIN ANALYZE` against the real partitioned table; the
+      conformance suite only verifies row-level correctness.)_
+- [ ] Stream durability test against AOF restart. _(Same boat;
+      operator-side verification.)_
+- [x] Conformance suite (`tests/storage/conformance.ts`, 22
+      scenarios) runs against both drivers. The CI
+      `storage-conformance` job exercises valkey-pg when the
+      env vars are set.
+- [ ] Property test with `fast-check`. _(Resolver got property
+      tests in Phase 4.1; storage-driver property tests are
+      deferred — the conformance scenarios cover the invariants
+      called out in the task.)_
 
 ### Operational scaffolding
 
-- [ ] `ops/grafana/datasources.yaml` declares PG + Valkey scrape
-      targets (dashboards land in Phase 8).
-- [ ] Backup script: `pg_dump` + Valkey `BGSAVE` + an upload hook
-      (target left as `s3://...` placeholder for the deployer).
-- [ ] Connection pooling chosen (`pg-pool` defaults vs PgBouncer
-      sidecar — see ADR).
+- [x] `ops/grafana/datasources.yaml` placeholder (dashboards in
+      Phase 8.1).
+- [x] `ops/backup.sh` with `pg_dump` + `BGSAVE` + optional upload
+      hook.
+- [x] Connection pooling: built-in `pg.Pool`, no PgBouncer in v1
+      (recorded in the ADR).
 
 ---
 
 ## Risks & watch-outs
 
-- [ ] Snapshots > a few MB will choke PG `bytea`. The plan defers
-      S3 to "if needed"; record a size threshold the driver enforces
-      so this is detectable, not surprising.
-- [ ] Don't let `appendEvents` swallow partial failures. Use one PG
-      transaction per turn; assert seq monotonicity inside the
-      transaction.
-- [ ] Postgres `actor_event` partitioning needs a partition-create
-      job. Add it now (cron in compose, scheduled in production)
-      rather than discovering it when a partition fills.
-- [ ] AOF + RDB tuning is a footgun — defaults are sometimes too
-      lossy. The ADR must commit to a durability target.
-- [ ] The in-memory driver must NOT silently diverge over time —
-      conformance tests are the only thing keeping it honest.
+- [x] Snapshot size warning at 64 KiB (`isOversizedSnapshot`).
+      Driver bumps `oversizedSnapshotCount`; Phase 8.1 surfaces it
+      as a metric.
+- [x] `appendEvents` runs the whole batch inside one PG transaction
+      with seq derived under `FOR UPDATE`-equivalent semantics
+      (single batch INSERT inside the txn).
+- [ ] Partition-create cron for `actor_event` partitions.
+      _(Bootstrap partition is created at migration time;
+      ongoing monthly creation is an operator-cron concern,
+      documented in the ADR as a known gap.)_
+- [x] AOF `everysec` + RDB hourly committed in the ADR and
+      reflected in `ops/valkey.conf`.
+- [x] Conformance suite keeps the memory driver honest.

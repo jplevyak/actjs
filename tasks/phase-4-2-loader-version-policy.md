@@ -27,81 +27,77 @@ activation with the per-class `floating: true` opt-in.
 
 ### Loader
 
-- [ ] `src/runtime/loader.ts`:
-  - [ ] `load(name, version): Promise<ClassCtor>`.
-  - [ ] Lookup PG `class_version` to get `sha256`.
-  - [ ] Read `class_blob`, decompress, compile with `swc`.
-  - [ ] Cache compiled module keyed by sha (per-process LRU, default
-        cap 256 entries).
-  - [ ] Eviction: oldest unused; never evict if there's an active
-        actor referencing it (refcount).
+- [x] `src/runtime/loader.ts`:
+  - [x] `load(name, version): Promise<ActorCtor>`.
+  - [x] Lookup via `driver.listClassVersions(name)` to get `sha256`.
+  - [x] Read source via `driver.getClassSource`, compile via
+        `ts.transpileModule` (swc was rejected in the ADR — native
+        dep cost).
+  - [x] LRU cache keyed by sha (default cap 256).
+  - [x] Refcount-aware eviction; just-inserted entry excluded so
+        a one-cap one-refcount load doesn't self-evict.
+  - [x] Phase 4.3 grace-window enforcement: `ClassVersionExpired`
+        when `record.graceUntil <= now`.
 
 ### Host bridge injection
 
-- [ ] `ActjsHost` interface implemented as a per-mailbox-turn object:
-  - [ ] `self: ActorRef` — built from owning host.
-  - [ ] `call<T>(ref, method, args)` — routes via runtime dispatch;
-        threads `manifest` and `causation` from the current request.
-  - [ ] `tell(ref, type, payload)` — same plumbing, no wait.
-  - [ ] `scheduleAt(when, type, payload)` — driver `enqueueReminder`.
-  - [ ] `now()` — process clock, made replaceable for tests.
-  - [ ] `log` — pino child logger bound to actor + request ids.
-  - [ ] `manifest` — the request-pinned Manifest, read-only.
-  - [ ] `abort(reason)` — aborts the current handler with a typed
-        error.
-- [ ] Lint rule: classes cannot `import 'fs' | 'pg' | 'net' | 'child_process'`.
-- [ ] Test: a class attempting forbidden imports fails publish in
-      Phase 4.1's compile step (extend that validator now).
+- [x] `ActjsHost` interface + `makeBridge` factory
+      (`src/runtime/host-bridge.ts`).
+- [x] Per-instance bridge: `self`, `call`, `tell`, `scheduleAt`,
+      `now`, `log`, `abort` (throws `ActorAbort`).
+- [ ] `manifest` field on the bridge. _(Deferred — the runtime
+      doesn't yet thread request manifests through actor calls;
+      Phase 5.1 plumbs it from the pin middleware into the call
+      path. The placeholder field is reserved for future
+      population.)_
+- [ ] `causation` threading on outbound calls. _(Phase 5.1; the
+      bridge's `call` doesn't yet pass a causation envelope id.)_
+- [x] Forbidden-import lint at publish time (regex pass in the
+      publisher; AST upgrade deferred to Phase 7.2).
+- [x] Test verifies forbidden import rejected at publish.
 
 ### Version policy
 
-- [ ] Class-level `floating: boolean` declared on the class metadata
-      record at publish time (already accepted by 4.1; this task
-      wires it into the runtime).
-- [ ] Activation logic:
-  - [ ] Read persisted `class_version` from snapshot.
-  - [ ] Read resolved version from request `manifest`.
-  - [ ] If sticky and persisted < resolved: do nothing (run old
-        code).
-  - [ ] If sticky and persisted > resolved: refuse with
-        `ManifestRegression` error.
-  - [ ] If floating and persisted ≠ resolved: walk migration chain
-        (3.3 already implemented this; just connect the flag).
-- [ ] `actctl actor migrate <id> <version>` for explicit sticky
-      bumps.
+- [x] `floating: boolean` on `ActorClassRegistration` /
+      `RegisterClassOptions`.
+- [x] Activation logic:
+  - [x] Persisted < registered + sticky → loader fetches old ctor.
+  - [x] Persisted < registered + floating → run new ctor + migrate.
+  - [x] Persisted > registered → `ManifestRegression` error.
+  - [x] Persisted == registered → registered ctor.
+- [ ] `actctl actor migrate <id> <version>`. _(Phase 8.2 owns the
+      CLI; the underlying migrate-on-activate path is already
+      present.)_
 
 ### Tests
 
-- [ ] Two coexisting versions: send a call to an actor pinned at
-      `1.4.2` while another actor is on `2.0.0`; both succeed,
-      different code runs.
-- [ ] LRU eviction: load 300 distinct shas; assert the cache size
-      stays at the configured cap and that an actively held sha is
-      never evicted.
-- [ ] Forbidden import rejected at publish.
-- [ ] Host bridge: a handler calling `actjs.now()` gets a value
-      whose mock can be replaced in tests.
-- [ ] Sticky regression: persisted `2.0.0`, requested `^1.0.0` →
-      structured error, no execution.
-- [ ] Floating + migration: persisted `1.0.0`, requested `^1.0.0`,
-      latest is `1.5.0` → migrate, run, snapshot bumped to `1.5.0`.
+- [x] Two coexisting versions of one class via the loader produce
+      distinct constructors with different `greet()` behavior.
+- [x] LRU evicts the oldest entry once cap is exceeded; refcounted
+      entries hold past the cap.
+- [x] Forbidden import rejected at publish.
+- [x] Host bridge `abort`/`now`/`outbound`-missing pure tests plus
+      an end-to-end `this.actjs.call` cross-actor round-trip.
+- [x] `ManifestRegression`: persisted v2 + registered v1 → error.
+- [x] Sticky activates the older ctor (verified via the loader
+      path).
+- [x] Floating activates the new ctor + migrates the snapshot.
 
 ---
 
 ## Risks & watch-outs
 
-- [ ] Compiled modules can leak globals onto `globalThis` if the
-      source does silly things. Document and lint, but accept
-      we're not sandboxing — write it down in the ADR so it's
-      explicit.
-- [ ] Refcounting against LRU eviction is a classic source of bugs.
-      Prefer a "mark in use, evict on idle scan" pattern over
-      decrement-on-release.
-- [ ] `swc` compiles to JS; ensure the produced output preserves
-      TS class metadata needed by the `@handler` registry. Test
-      explicitly.
-- [ ] The host bridge is the security boundary. Anything new added
-      here (in any future phase) needs ADR-level review.
-- [ ] `ManifestRegression` errors will confuse users hot-rolling
-      back a deploy. The ADR should commit to an SDK-side hint
-      and an `actctl manifest pin <sha>` escape hatch.
+- [x] No sandbox in v1: documented in the ADR, accepted under the
+      self-hosted threat model.
+- [x] Refcount + LRU: just-inserted entry exempt from eviction,
+      verified by test.
+- [ ] swc/TS decorator output preserving `@handler` registry. _(In
+      practice we found stage-3 decorator emit inside the
+      AsyncFunction loader context to be version-sensitive; the
+      published-source convention works around this with a direct
+      `_handlers` assignment, documented in the Phase 4.2 test
+      file.)_
+- [x] Host bridge as security boundary: documented; additions go
+      through ADR review.
+- [ ] `ManifestRegression` SDK hint + `actctl manifest pin`
+      escape hatch. _(Phase 6.2 / Phase 8.2.)_

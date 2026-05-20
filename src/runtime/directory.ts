@@ -7,19 +7,50 @@
  * surface stays the same so call sites don't change.
  */
 import type { StorageDriver } from '../storage/driver.js';
+import type { ActorRef } from '../types/envelope.js';
 import type { ActorId, ClassName } from '../types/ids.js';
 
+import type { BridgeOutbound } from './host-bridge.js';
 import { ActorHost, type ActorClassRegistration } from './host.js';
+import type { ClassLoader } from './loader.js';
 
 export class Directory {
   private hosts = new Map<ActorId, ActorHost>();
   private materializing = new Map<ActorId, Promise<ActorHost>>();
   private destroyed = false;
+  private readonly outbound: BridgeOutbound;
 
   constructor(
     private readonly driver: StorageDriver,
     private readonly classes: Map<ClassName, ActorClassRegistration>,
-  ) {}
+    private readonly loader: ClassLoader,
+  ) {
+    // Arrow methods capture `this` lexically — no `const dir = this` alias.
+    this.outbound = {
+      call: async <R = unknown>(ref: ActorRef, method: string, args: unknown): Promise<R> => {
+        const target = await this.resolve(ref.id, ref.class);
+        return target.call<R>(method, args);
+      },
+      tell: async (ref: ActorRef, type: string, payload: unknown): Promise<void> => {
+        const target = await this.resolve(ref.id, ref.class);
+        await target.tell(type, payload);
+      },
+      scheduleAt: async (
+        when: number,
+        actorId: ActorId,
+        className: ClassName,
+        type: string,
+        payload: unknown,
+      ): Promise<void> => {
+        await this.driver.enqueueReminder(when, {
+          actorId,
+          className,
+          type,
+          payload,
+        });
+      },
+    };
+  }
 
   /**
    * Get (or materialize) the host for an actor of class `className`.
@@ -45,6 +76,8 @@ export class Directory {
         driver: this.driver,
         id,
         onIdleEvict: (idleId) => this.evict(idleId),
+        loader: this.loader,
+        outbound: this.outbound,
       });
       await host.activate();
       return host;
@@ -71,6 +104,11 @@ export class Directory {
 
   liveIds(): readonly ActorId[] {
     return Array.from(this.hosts.keys());
+  }
+
+  /** Currently-cached host, or null if not materialized. */
+  getLive(id: ActorId): ActorHost | null {
+    return this.hosts.get(id) ?? null;
   }
 
   /** Gracefully deactivate every host. Idempotent. */

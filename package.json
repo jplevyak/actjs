@@ -66,8 +66,12 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "express": "^5.0.1",
-    "multer": "^2.0.0",
+    "@fastify/multipart": "^10.0.0",
+    "@fastify/swagger": "^9.7.0",
+    "@fastify/websocket": "^11.2.0",
+    "fast-json-patch": "^3.1.1",
+    "fastify": "^5.8.5",
+    "fastify-type-provider-zod": "^6.1.0",
     "pg": "^8.21.0",
     "redis": "^4.7.0",
     "semver": "^7.8.0",
@@ -77,8 +81,6 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.15.0",
-    "@types/express": "^5.0.0",
-    "@types/multer": "^1.4.12",
     "@types/node": "^20.17.6",
     "@types/pg": "^8.20.0",
     "@types/semver": "^7.7.1",

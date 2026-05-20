@@ -25,84 +25,86 @@ observability needed to deprecate old class versions safely.
 
 ### Server: pin handling
 
-- [ ] Middleware reads `X-Actjs-Manifest`:
-  - [ ] Sha present → load via `driver.loadManifest(sha)` →
-        `ctx.manifest`.
-  - [ ] Sha unknown → 400 `ManifestUnknown`.
-  - [ ] Sha references a _deprecated_ class version → response
-        gets a `Warning: 299 - "VersionDeprecated"` header and a
-        structured warning field in JSON.
-  - [ ] Sha references a _removed_ class version → 410 `Gone`.
+- [x] Middleware reads `X-Actjs-Manifest`:
+  - [x] Sha present → load via `driver.loadManifest(sha)` →
+        `req.manifestPin`.
+  - [x] Sha unknown → 400 `ManifestUnknown`.
+  - [x] Sha references a _deprecated_ class version → response
+        gets a `Warning: 299 - "VersionDeprecated"` header.
+  - [x] Sha references a _removed_ class version → 410 `Gone`.
 - [ ] WS connect: same handshake; the pin is associated with the
       connection, applied to every JSON-RPC call until the client
-      reconnects.
+      reconnects. _(deferred to Phase 5.2 — WS lands there)_
 
 ### Server: pin observability
 
-- [ ] Every request log line carries `manifestSha`.
+- [ ] Every request log line carries `manifestSha`. _(deferred to
+      Phase 8.1 when pino + the request-log middleware land)_
 - [ ] Active WS connections expose `manifestSha` for the duration.
-- [ ] A periodic reducer (every 30 s) aggregates active connections + a sliding window of recent requests into the
-      `clients_by_manifest{sha}` gauge.
-- [ ] Per-sha last-seen timestamp stored at `manifest:<sha>:lastSeen`
-      in Valkey for `actctl manifest in-use`.
+      _(deferred to Phase 5.2)_
+- [x] In-process tracker aggregates per-sha counters with a top-N
+      cap. _(Phase 8.1 promotes this to a Prometheus gauge; the
+      30-second reducer + sliding window are deferred.)_
+- [x] Per-sha last-seen recorded via 1/100 sampled
+      `saveManifest` (substitute for a dedicated
+      `manifest:<sha>:lastSeen` key, which a future driver method
+      can add).
 
 ### Deprecation lifecycle
 
-- [ ] `class_version` gains a `grace_until` timestamp (set when a
-      version is deprecated; default 90 days out — confirm in ADR).
-- [ ] After `grace_until` passes, the loader refuses to load the
-      version; pins resolving to it return 410.
+- [x] `class_version` gains a `grace_until` timestamp (already on
+      the Phase 2 schema; wired here).
+- [x] After `grace_until` passes, the loader refuses
+      (`ClassVersionExpired`); pins resolving to it return 410.
 - [ ] `actctl deprecate <class>@<ver> [--grace=<days>]` writes the
-      `grace_until`.
+      `grace_until`. _(actctl is Phase 8.2; the underlying
+      `PATCH /v1/classes/:name/versions/:v` already accepts
+      `graceUntilMs`.)_
 
 ### actctl manifest in-use
 
-- [ ] CLI command reads `clients_by_manifest` (Prom or driver
-      side-channel) and `manifest:*:lastSeen` keys.
-- [ ] Output groups shas by class:version they reference, so
-      operators can answer "is anyone still using Cart@1.4.x?"
-- [ ] `--json` flag for machine consumption.
-- [ ] Exit code non-zero if any deprecated version is still in use
-      (lets CI gate a deletion).
+- [ ] CLI command reads `clients_by_manifest` and
+      `manifest:*:lastSeen` keys. _(Phase 8.2 owns the CLI.)_
+- [x] `GET /v1/admin/manifests/in-use` returns the underlying
+      data so the CLI has something to call.
+- [ ] Output groups shas by class:version they reference. _(Phase 8.2.)_
+- [ ] `--json` flag. _(Phase 8.2.)_
+- [ ] Exit code non-zero if any deprecated version is still in
+      use. _(Phase 8.2.)_
 
 ### SDK contract (placeholder; full SDK is Phase 6)
 
-- [ ] Define the header name (`X-Actjs-Manifest`) and JSON-RPC
-      meta-field name (`manifest`) in a shared `wire` types
-      package consumed by both server and client.
-- [ ] Server emits Warning headers in a form the SDK can detect
-      and surface to the build pipeline.
+- [x] Header name `X-Actjs-Manifest` defined in `pin-middleware.ts`.
+      _(A dedicated `@actjs/wire` package + JSON-RPC meta-field
+      `manifest` is Phase 5.2 / 6.2 work.)_
+- [x] Server emits Warning headers in a form the SDK can detect.
 
 ### Tests
 
-- [ ] Pin happy path: request with valid sha runs against the pinned
-      versions.
-- [ ] Pin to deprecated version: response carries Warning; server
-      still serves it (within grace).
-- [ ] Pin past grace: 410.
-- [ ] `actctl manifest in-use` reports active shas after a synthetic
-      client makes requests; exits 1 when a deprecated sha is in
-      use.
-- [ ] Cardinality safety: 1000 distinct shas seen in 10 minutes
-      don't explode the metrics endpoint (the gauge has a
-      configurable top-N cap).
+- [x] Pin happy path: request with valid sha is recorded by the
+      tracker (`tests/v1/manifest-pin.test.ts`).
+- [x] Pin to deprecated version: response carries Warning; server
+      still serves it.
+- [x] Pin past grace: 410.
+- [ ] `actctl manifest in-use` test. _(Phase 8.2.)_
+- [x] Cardinality safety: tracker tests cover top-N + `_other`
+      overflow.
 
 ---
 
 ## Risks & watch-outs
 
-- [ ] `clients_by_manifest{sha}` is high-cardinality by design.
-      Cap it to top-N most-seen shas and emit an `_other` bucket
-      for the rest; record this in the ADR.
+- [x] `clients_by_manifest{sha}` is high-cardinality by design.
+      Cap implemented (default 128, `_other` overflow); rationale
+      in the ADR.
 - [ ] Warning headers are silently dropped by most browser code.
-      The SDK has to surface them deliberately — note it as a
-      cross-phase dependency for 6.2.
-- [ ] The "grace_until" mechanism is the only thing preventing
-      forced deletion from breaking old clients. Don't let
-      another path bypass it (e.g. a hard-delete admin endpoint
-      without a grace check).
-- [ ] Per-sha last-seen requires a Valkey write on every request.
-      Sample (1 in N) to keep cost bounded.
-- [ ] A misconfigured CDN can pin every client to one sha indefinitely.
-      Document the `pin: 'latest'` dev escape; recommend it as a
-      compose-time default for staging.
+      _(SDK surfacing is Phase 6.2.)_
+- [x] The "grace_until" mechanism is the only thing preventing
+      forced deletion from breaking old clients. No hard-delete
+      path exists today; ADR records "soft-delete only" as the
+      v1 policy.
+- [x] Per-sha last-seen requires a Valkey write on every request.
+      Sampling at 1/100 implemented; sample rate configurable.
+- [ ] A misconfigured CDN can pin every client to one sha
+      indefinitely. _(Document the `pin: 'latest'` dev escape
+      when the SDK lands in Phase 6.2.)_

@@ -19,12 +19,22 @@
  * The branch is decided once per activation by `instanceof
  * EventSourced`; the rest of the host doesn't care.
  */
+import { compare, type Operation } from 'fast-json-patch';
+import semver from 'semver';
+
 import { Actor } from '../actor.js';
 import { EventSourced } from '../event-sourced.js';
 import { getHandlers, type HandlerFn } from '../handler.js';
 import type { StorageDriver } from '../storage/driver.js';
 import type { ActorId, ClassName, Version } from '../types/ids.js';
 
+import {
+  makeBridge,
+  SILENT_LOGGER,
+  type BridgeLogger,
+  type BridgeOutbound,
+} from './host-bridge.js';
+import { ClassLoader } from './loader.js';
 import { Mailbox, MailboxFullError } from './mailbox.js';
 
 /* -------------------------------------------------------- Public types */
@@ -44,6 +54,14 @@ export interface ActorClassRegistration {
    * is also force-flushed on `onDeactivate` regardless of this.
    */
   readonly snapshotEveryNEvents?: number;
+  /**
+   * `false` (default) — sticky: actors keep running the class
+   * version they were created with. Older versions are loaded via
+   * the `ClassLoader` on activation.
+   * `true` — floating: every activation runs the registered version,
+   * walking `migrate()` if the snapshot is older.
+   */
+  readonly floating?: boolean;
 }
 
 export interface ActorHostOptions {
@@ -57,6 +75,21 @@ export interface ActorHostOptions {
   readonly onIdleEvict?: (id: ActorId) => void;
   /** Test seam: settable clock. */
   readonly now?: () => number;
+  /**
+   * Loader used to fetch older class versions when a sticky actor
+   * activates against a snapshot whose `class_version` predates the
+   * registered version. Omit if the only version that ever runs is
+   * the registered one (unit tests).
+   */
+  readonly loader?: ClassLoader;
+  /**
+   * Callbacks the per-instance bridge uses for outbound `call` /
+   * `tell` / `scheduleAt`. Provided by the Directory when the
+   * Runtime owns this host.
+   */
+  readonly outbound?: BridgeOutbound;
+  /** Optional bridge logger. Default silent. */
+  readonly log?: BridgeLogger;
 }
 
 /* ------------------------------------------------------- Mailbox items */
@@ -83,6 +116,40 @@ const DEFAULT_MAILBOX_CAPACITY = 1024;
 const DEFAULT_IDLE_MS = 5 * 60 * 1000;
 const DEFAULT_SNAPSHOT_DEBOUNCE_MS = 250;
 const DEFAULT_SNAPSHOT_EVERY_N_EVENTS = 100;
+
+/**
+ * Information emitted to each commit listener after a turn completes.
+ * SWM actors deliver `patch` (RFC 6902); ES actors deliver `event`
+ * with the appended events and the new head seq. `tombstone` is
+ * emitted externally via `notifyTombstone()` when the actor is
+ * deleted.
+ */
+export type CommitInfo =
+  | { readonly kind: 'patch'; readonly patch: readonly Operation[]; readonly state: object }
+  | {
+      readonly kind: 'event';
+      readonly events: readonly unknown[];
+      readonly seq: bigint;
+      readonly state: object;
+    }
+  | { readonly kind: 'tombstone' };
+
+export type CommitListener = (info: CommitInfo) => void;
+
+export class ManifestRegression extends Error {
+  readonly persistedVersion: Version;
+  readonly registeredVersion: Version;
+  constructor(actorId: ActorId, className: ClassName, persisted: Version, registered: Version) {
+    super(
+      `actor ${actorId as string} (${className as string}) is persisted at ` +
+        `${persisted as string} which is newer than the registered ` +
+        `${registered as string}; refusing to run older code against newer state`,
+    );
+    this.name = 'ManifestRegression';
+    this.persistedVersion = persisted;
+    this.registeredVersion = registered;
+  }
+}
 
 /* --------------------------------------------------------------- Host */
 
@@ -132,6 +199,19 @@ export class ActorHost {
     migrationsApplied: 0n,
   };
 
+  private readonly loader: ClassLoader | null;
+  private readonly outbound: BridgeOutbound | null;
+  private readonly bridgeLog: BridgeLogger;
+  /** The class version the activated instance is actually running. */
+  private runningVersion: Version;
+  /** sha256 of the running class source; used to release the loader refcount. */
+  private runningSha: string | null = null;
+
+  /** Subscribers attached via {@link onCommit}; called after each turn. */
+  private readonly commitListeners = new Set<(info: CommitInfo) => void>();
+  /** Pre-handler snapshot of SWM state, for JSON Patch diffing. */
+  private prevStateCapture: object | null = null;
+
   constructor(options: ActorHostOptions) {
     this.id = options.id;
     this.className = options.registration.name;
@@ -146,6 +226,11 @@ export class ActorHost {
       options.registration.snapshotEveryNEvents ?? DEFAULT_SNAPSHOT_EVERY_N_EVENTS;
     if (options.onIdleEvict) this.onIdleEvict = options.onIdleEvict;
     this.now = options.now ?? Date.now;
+    this.loader = options.loader ?? null;
+    this.outbound = options.outbound ?? null;
+    this.bridgeLog = options.log ?? SILENT_LOGGER;
+    // Default; resolveCtor() may overwrite this for sticky activations.
+    this.runningVersion = this.version;
   }
 
   /* -------------------------------------------------------- Activation */
@@ -165,23 +250,40 @@ export class ActorHost {
     this.mailbox = new Mailbox<MailboxItem>(this.mailboxCapacity);
 
     const snap = await this.driver.loadSnapshot(this.id);
-    this.instance = new this.registration.ctor();
+    const persisted = snap?.version ?? null;
+    const { ctor, runningVersion, willMigrateSnap } = await this.resolveCtor(persisted);
+    this.runningVersion = runningVersion;
+
+    this.instance = new ctor();
     this.instance.actor_id = this.id;
     this.isEs = this.instance instanceof EventSourced;
     // Stage-3 method decorators register via `addInitializer`, which runs
     // during construction. Read the registry only after the first
     // instantiation so subclasses have a chance to install themselves.
-    this.handlers = getHandlers(this.registration.ctor);
+    this.handlers = getHandlers(ctor);
 
-    let prevVersion: Version | null = null;
+    // Per-instance bridge. Tests that don't pass `outbound` get a stub
+    // that throws on cross-actor calls.
+    this.instance.actjs = makeBridge({
+      self: {
+        id: this.id,
+        class: this.className,
+        version: this.runningVersion,
+      },
+      ...(this.outbound ? { outbound: this.outbound } : {}),
+      log: this.bridgeLog,
+      now: this.now,
+    });
+
+    let prevSnap: { state: unknown; version: Version } | null = null;
     if (snap) {
       this.instance.state = snap.state as object;
       this.currentSeq = snap.seq;
-      if (snap.version !== this.version) prevVersion = snap.version;
+      if (willMigrateSnap) prevSnap = { state: snap.state, version: snap.version };
     } else {
       // Cold start. Register the actor row before any event writes so
       // appendEvents can locate it.
-      await this.driver.registerActor(this.id, this.className, this.version);
+      await this.driver.registerActor(this.id, this.className, this.runningVersion);
       if (this.isEs) {
         const es = this.instance as EventSourced<object, unknown>;
         this.instance.state = es.initialState();
@@ -193,8 +295,8 @@ export class ActorHost {
     // Snapshot version mismatch → walk migrate() on the instance. The
     // prior snapshot is preserved at the retention sentinel seq = -1
     // so a bad migrate is rollback-able by an operator.
-    if (snap && prevVersion) {
-      await this.migrateSnapshot(snap.state, prevVersion);
+    if (prevSnap) {
+      await this.migrateSnapshot(prevSnap.state, prevSnap.version);
     }
 
     // ES: replay events strictly after the snapshot's seq up to the head.
@@ -220,6 +322,68 @@ export class ActorHost {
         inboxId: r.id,
       });
     }
+  }
+
+  /**
+   * Decide which class version this activation runs and produce the
+   * constructor. Encapsulates the sticky-vs-floating policy.
+   */
+  private async resolveCtor(persisted: Version | null): Promise<{
+    ctor: new () => Actor;
+    runningVersion: Version;
+    willMigrateSnap: boolean;
+  }> {
+    const registered = this.version;
+    const floating = this.registration.floating ?? false;
+
+    if (!persisted) {
+      return {
+        ctor: this.registration.ctor,
+        runningVersion: registered,
+        willMigrateSnap: false,
+      };
+    }
+
+    if ((persisted as string) === (registered as string)) {
+      return {
+        ctor: this.registration.ctor,
+        runningVersion: registered,
+        willMigrateSnap: false,
+      };
+    }
+
+    // Persisted differs from registered.
+    if (semver.gt(persisted as string, registered as string)) {
+      throw new ManifestRegression(this.id, this.className, persisted, registered);
+    }
+
+    if (floating) {
+      // Use the new code; the snapshot state will be migrated.
+      return {
+        ctor: this.registration.ctor,
+        runningVersion: registered,
+        willMigrateSnap: true,
+      };
+    }
+
+    // Sticky: load the older version's ctor.
+    if (!this.loader) {
+      throw new Error(
+        `actor ${this.id as string} is sticky at ${persisted as string} but the runtime is ` +
+          `registered for ${registered as string} and no ClassLoader is configured`,
+      );
+    }
+    const oldCtor = await this.loader.load(this.className, persisted);
+    const sha = await this.loader.sha256For(this.className, persisted);
+    if (sha) {
+      this.loader.acquire(sha);
+      this.runningSha = sha;
+    }
+    return {
+      ctor: oldCtor,
+      runningVersion: persisted,
+      willMigrateSnap: false,
+    };
   }
 
   /**
@@ -313,6 +477,10 @@ export class ActorHost {
         console.error(`onDeactivate threw for ${this.id as string}:`, err);
       }
     }
+    if (this.loader && this.runningSha) {
+      this.loader.release(this.runningSha);
+      this.runningSha = null;
+    }
     this.instance = null;
     this.workerPromise = null;
   }
@@ -382,6 +550,12 @@ export class ActorHost {
       }
       return;
     }
+    // Capture state pre-handler for the JSON Patch diff if there are
+    // SWM subscribers attached. Cheap when no listeners; we never
+    // structured-clone in the no-subscriber path.
+    if (!this.isEs && this.commitListeners.size > 0) {
+      this.prevStateCapture = structuredClone(this.instance!.state);
+    }
     try {
       const result = await handler.call(
         this.instance!,
@@ -412,6 +586,19 @@ export class ActorHost {
       await this.driver.ackInbox(this.id, [item.inboxId]);
     }
     this.scheduleSnapshot();
+    // Emit a JSON Patch if anyone is listening and the handler
+    // actually mutated state.
+    if (this.prevStateCapture !== null) {
+      const newState = this.instance!.state;
+      const patch = compare(
+        this.prevStateCapture as Record<string, unknown>,
+        newState as Record<string, unknown>,
+      );
+      this.prevStateCapture = null;
+      if (patch.length > 0) {
+        this.emitCommit({ kind: 'patch', patch, state: newState });
+      }
+    }
   }
 
   /**
@@ -460,8 +647,60 @@ export class ActorHost {
       await this.driver.ackInbox(this.id, [item.inboxId]);
     }
 
+    // Emit raw events to ES subscribers.
+    if (this.commitListeners.size > 0) {
+      this.emitCommit({
+        kind: 'event',
+        events,
+        seq: this.currentSeq,
+        state: es.state,
+      });
+    }
+
     if (this.eventsSinceSnapshot >= this.snapshotEveryNEvents) {
       await this.flushSnapshot();
+    }
+  }
+
+  /* --------------------------------------------------- Commit hooks */
+
+  /** Register a listener invoked after every committed mailbox turn. */
+  onCommit(listener: CommitListener): () => void {
+    this.commitListeners.add(listener);
+    return () => this.commitListeners.delete(listener);
+  }
+
+  /** Currently-attached listener count. Test seam. */
+  commitListenerCount(): number {
+    return this.commitListeners.size;
+  }
+
+  /**
+   * Externally notify subscribers that this actor has been
+   * tombstoned. Called by the API layer right after
+   * `driver.tombstoneActor`.
+   */
+  notifyTombstone(): void {
+    this.emitCommit({ kind: 'tombstone' });
+  }
+
+  /** Read the current in-memory state — for the subscribe-snapshot path. */
+  currentState(): unknown {
+    return this.instance?.state ?? null;
+  }
+
+  /** Current head event seq (ES); 0 for SWM. */
+  currentEventSeq(): bigint {
+    return this.currentSeq;
+  }
+
+  private emitCommit(info: CommitInfo): void {
+    for (const l of this.commitListeners) {
+      try {
+        l(info);
+      } catch (err) {
+        console.error(`commit listener for ${this.id as string} threw:`, err);
+      }
     }
   }
 
@@ -494,7 +733,7 @@ export class ActorHost {
     this.snapshotDirty = false;
     await this.driver.saveSnapshot(this.id, {
       class: this.className,
-      version: this.version,
+      version: this.runningVersion,
       seq: this.isEs ? this.currentSeq : 0n,
       state: this.instance.snapshot(),
     });
