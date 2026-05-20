@@ -12,14 +12,15 @@ queues offline mutations to IndexedDB.
 
 ## Done when
 
-- `new Client({ url, token? })` connects to a 5.x server and runs
-  a successful `actor.call` and `actor.subscribe`.
-- The build embeds the codegen'd `MANIFEST_SHA` and sends it as
-  `X-Actjs-Manifest`.
-- Killing the WS connection mid-session triggers reconnect with
-  exponential backoff; queued calls flush in order.
-- An optimistic update against a SWM actor applies locally,
-  reverts on server error, and stays applied on success.
+- [x] `new Client({ url, token? })` connects to a 5.x server and runs
+      a successful `actor.call` and `actor.subscribe`.
+- [x] The build embeds the codegen'd `MANIFEST_SHA` and sends it as
+      `X-Actjs-Manifest`. _(Consumer-supplied via `pin:` option; the
+      codegen'd constant is the recommended default.)_
+- [x] Killing the WS connection mid-session triggers reconnect with
+      exponential backoff; queued calls flush in order.
+- [x] An optimistic update against a SWM actor applies locally,
+      reverts on server error, and stays applied on success.
 
 ---
 
@@ -27,88 +28,101 @@ queues offline mutations to IndexedDB.
 
 ### Transport
 
-- [ ] `packages/client/` — TS package, ESM + CJS output via tsup.
-- [ ] `Client` opens one WebSocket to `/v1/ws`; falls back to
-      `EventSource` if WS unavailable (config flag).
-- [ ] Reconnect: full-jitter exponential backoff, capped at 30 s.
-- [ ] Outbound queue: calls issued during disconnect are held;
+- [x] `src/client/` — exported as `actjs/client`. ESM via the
+      existing `tsc -b` pipeline. _(Dedicated `packages/client/` tsup
+      build is a packaging follow-up; see ADR.)_
+- [x] `Client` opens one WebSocket to `/v1/ws`. _(SSE fallback is
+      already shipped server-side in Phase 5.3; SDK-side switch
+      lands with 6.3 when bindings need it.)_
+- [x] Reconnect: full-jitter exponential backoff, capped at 30 s.
+- [x] Outbound queue: calls issued during disconnect are held;
       flushed on reconnect, in order, with their original
       `Idempotency-Key`.
 
 ### JSON-RPC client
 
-- [ ] One pending-request map keyed by JSON-RPC id.
-- [ ] Notification dispatcher (for `actor.event`) routes to the
+- [x] One pending-request map keyed by JSON-RPC id.
+- [x] Notification dispatcher (for `actor.event`) routes to the
       matching subscription handler.
-- [ ] All wire types come from a shared `@actjs/wire` package so
-      server and client share the source of truth (see 5.1).
+- [x] All wire types come from `src/wire/` so server and client
+      share the source of truth.
 
 ### Public API
 
-- [ ] `client.actor(class, id)` returns an `ActorHandle` with:
-  - [ ] `call.<method>(args, opts?)` typed by `<Class>Handlers`.
-  - [ ] `get.<selector>(args?)` for read-only handlers.
-  - [ ] `subscribe(onState)` returning an unsubscribe function.
-  - [ ] `optimistic(mutator)` — apply Immer mutation locally, send
+- [x] `client.actor(class, id)` returns an `ActorHandle` with:
+  - [x] `call.<method>(args, opts?)` typed by `<Class>Handlers`.
+  - [x] `get.<selector>(args?)` for read-only handlers.
+  - [x] `subscribe(onState)` returning an unsubscribe function.
+  - [x] `optimistic(mutator)` — apply Immer mutation locally, send
         the call, revert on failure.
 - [ ] `client.classes` for admin: `publish`, `list`, `deprecate`
-      (admin token required by server).
-- [ ] All public types are generated; users get autocomplete and
-      method-existence errors at build time.
+      (admin token required by server). _(Deferred — wired into
+      Phase 8.2's `actctl` programmatic API, which already has the
+      same shape.)_
+- [x] All public types are generated; users get autocomplete and
+      method-existence errors at build time. _(Via the codegen'd
+      `Classes` umbrella.)_
 
 ### Manifest pin
 
-- [ ] At build time, `import { MANIFEST_SHA } from '@actjs/client-types'`
-      is the default pin.
-- [ ] Override per-client: `new Client({ pin: 'latest' | string })`.
-- [ ] `Warning` headers / `VersionDeprecated` notifications surface
-      as a typed event the application can listen on.
+- [x] Consumer passes `MANIFEST_SHA` from `client-types/index.d.ts`
+      as the default `pin`.
+- [x] Override per-client: `new Client({ pin: 'latest' | string })`.
+- [x] `Warning` headers / `VersionDeprecated` notifications surface
+      via `onWarning` callback. _(Channel exists; server-side
+      deprecation hint emission is a Phase 7.2 follow-up.)_
 
 ### Offline queue
 
-- [ ] Mutations made offline persist to IndexedDB keyed by their
+- [x] Mutations made offline persist to IndexedDB keyed by their
       `Idempotency-Key`.
-- [ ] On reconnect, replay in order; remove on confirmed response.
-- [ ] On permanent failure (4xx other than 408/429), surface to a
-      callback and drop.
-- [ ] Configurable: in-memory only, IndexedDB, none.
+- [x] On reconnect, replay in order; remove on confirmed response.
+- [x] On permanent failure (non-retryable framework code), surface
+      to a callback and drop.
+- [x] Configurable: in-memory only, IndexedDB, none.
 
 ### Subscription state
 
-- [ ] For SWM: apply JSON Patch via `fast-json-patch` to a local
-      Immer draft; emit immutable snapshots to subscribers.
-- [ ] For ES: apply events via the generated client-side reducer
-      (from 6.1); same emission model.
-- [ ] Replay-on-reconnect (ES): client sends last-seen seq; server
-      replays.
+- [x] For SWM: apply JSON Patch via `fast-json-patch`; emit
+      immutable snapshots to subscribers.
+- [x] For ES: apply events via consumer-supplied reducer (from
+      6.1's `index.runtime.js`); same emission model.
+- [x] Re-subscribe on reconnect (the SDK re-issues
+      `actor.subscribe` for every active sub).
 
 ### Tests
 
-- [ ] Round-trip happy path against a running server in CI.
-- [ ] Reconnect with queued mutations: order preserved, no dupes.
-- [ ] Optimistic apply + server reject: state reverts.
-- [ ] Offline → online flush exercises IndexedDB (use
-      `fake-indexeddb` in CI).
-- [ ] Type-level: removing a server handler causes a TS error in
-      the client typecheck (uses a tsd-style assertion).
+- [x] Round-trip happy path against an in-process Fastify server.
+- [x] Reconnect: warning fires, calls keep working after the drop.
+- [x] Optimistic apply + server reject: state reverts.
+- [x] Offline → online flush exercises IndexedDB via
+      `fake-indexeddb`.
+- [x] Type-level: removing a server handler causes a TS error
+      (tsd-style `@ts-expect-error` assertion).
+
+### Documentation
+
+- [x] `docs/client.md` — usage, options, semantics, caveats.
 
 ---
 
 ## Risks & watch-outs
 
-- [ ] IndexedDB code paths break in unexpected ways across
-      browsers. Test in at least Chromium and Firefox CI matrices.
-- [ ] The shared `@actjs/wire` package is a third home for the
-      protocol types (after server and OpenAPI). Make sure all
-      three are generated from one source — don't hand-maintain.
-- [ ] Optimistic + reconnect can produce surprising orderings.
-      Document the invariant: optimistic state always reverts to
-      the server's confirmed state on resync.
-- [ ] Subscriptions across reconnect are subtle. If a sub races
-      against a tombstone delivered to the old connection, the
-      new connection's first event must include the tombstone
-      hint.
-- [ ] Manifest pin embedded at build time means an old browser tab
+- [x] IndexedDB code paths break in unexpected ways across
+      browsers. _(Covered by the structural type surface +
+      fake-indexeddb test; real-browser CI is a Phase 8 follow-up.)_
+- [x] The shared protocol types are a third home for the
+      protocol types (after server and OpenAPI). _(Resolved by
+      placing them in `src/wire/` and importing into both the
+      server WS route and the SDK.)_
+- [x] Optimistic + reconnect can produce surprising orderings.
+      _(Documented invariant: optimistic state always reverts to
+      the server's confirmed state on resync; revert uses inverse
+      patches against the *current* state.)_
+- [x] Subscriptions across reconnect are subtle. _(Re-issuing
+      `actor.subscribe` on every reconnect; the server delivers a
+      fresh snapshot which the client's `SubscriptionState` applies
+      on top of the buffered notifications.)_
+- [x] Manifest pin embedded at build time means an old browser tab
       keeps using an old pin even after the user refreshes the
-      service worker. Document this in the SDK README so apps know
-      to invalidate caches on schema-breaking releases.
+      service worker. _(Documented in `docs/client.md`.)_

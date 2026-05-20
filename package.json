@@ -44,6 +44,14 @@
     "./codegen": {
       "types": "./dist/codegen/index.d.ts",
       "import": "./dist/codegen/index.js"
+    },
+    "./client": {
+      "types": "./dist/client/index.d.ts",
+      "import": "./dist/client/index.js"
+    },
+    "./wire": {
+      "types": "./dist/wire/index.d.ts",
+      "import": "./dist/wire/index.js"
     }
   },
   "bin": {
@@ -79,6 +87,7 @@
     "fast-json-patch": "^3.1.1",
     "fastify": "^5.8.5",
     "fastify-type-provider-zod": "^6.1.0",
+    "immer": "^11.1.8",
     "pg": "^8.21.0",
     "redis": "^4.7.0",
     "semver": "^7.8.0",
@@ -94,6 +103,7 @@
     "@vitest/coverage-v8": "^2.1.5",
     "eslint": "^9.15.0",
     "eslint-plugin-import": "^2.31.0",
+    "fake-indexeddb": "^6.2.5",
     "prettier": "^3.3.3",
     "tsx": "^4.19.2",
     "typescript-eslint": "^8.14.0",
