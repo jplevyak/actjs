@@ -52,6 +52,30 @@
     "./wire": {
       "types": "./dist/wire/index.d.ts",
       "import": "./dist/wire/index.js"
+    },
+    "./bindings": {
+      "types": "./dist/bindings/index.d.ts",
+      "import": "./dist/bindings/index.js"
+    },
+    "./bindings/react": {
+      "types": "./dist/bindings/react.d.ts",
+      "import": "./dist/bindings/react.js"
+    },
+    "./bindings/svelte": {
+      "types": "./dist/bindings/svelte.d.ts",
+      "import": "./dist/bindings/svelte.js"
+    }
+  },
+  "peerDependencies": {
+    "react": ">=18.0.0",
+    "svelte": ">=4.0.0"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    },
+    "svelte": {
+      "optional": true
     }
   },
   "bin": {
