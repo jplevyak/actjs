@@ -19,8 +19,11 @@
  * The branch is decided once per activation by `instanceof
  * EventSourced`; the rest of the host doesn't care.
  */
-import { compare, type Operation } from 'fast-json-patch';
+import jsonpatch from 'fast-json-patch';
+import type { Operation } from 'fast-json-patch';
 import semver from 'semver';
+
+const { compare } = jsonpatch;
 
 import { Actor } from '../actor.js';
 import { EventSourced } from '../event-sourced.js';
