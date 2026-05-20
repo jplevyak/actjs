@@ -2914,6 +2914,131 @@
           }
         }
       }
+    },
+    "/v1/actors/{class}/{id}/events": {
+      "get": {
+        "summary": "Server-Sent Events stream of actor commits",
+        "tags": [
+          "actors"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "toJSONSchema",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "object",
+              "shape": {
+                "class": {
+                  "def": {
+                    "type": "string",
+                    "checks": [
+                      {}
+                    ]
+                  },
+                  "type": "string",
+                  "format": "regex",
+                  "minLength": null,
+                  "maxLength": null
+                },
+                "id": {
+                  "def": {
+                    "type": "string",
+                    "checks": [
+                      {}
+                    ]
+                  },
+                  "type": "string",
+                  "format": null,
+                  "minLength": 1,
+                  "maxLength": null
+                }
+              }
+            },
+            "in": "path",
+            "name": "def",
+            "required": true
+          },
+          {
+            "schema": "object",
+            "in": "path",
+            "name": "type",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "parse",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "safeParse",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "parseAsync",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "safeParseAsync",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "spa",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "encode",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "decode",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "encodeAsync",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "decodeAsync",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "safeEncode",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "safeDecode",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "safeEncodeAsync",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "safeDecodeAsync",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
     }
   },
   "tags": [

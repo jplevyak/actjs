@@ -39,6 +39,7 @@ export interface PinHookOptions {
 }
 
 const HEADER = 'x-actjs-manifest';
+const QUERY_PARAM = 'manifest';
 const SAMPLE_DEFAULT = 100;
 
 export function makePinHook(options: PinHookOptions): preHandlerAsyncHookHandler {
@@ -48,8 +49,8 @@ export function makePinHook(options: PinHookOptions): preHandlerAsyncHookHandler
   const randomInt = options.randomInt ?? ((n: number): number => Math.floor(Math.random() * n));
 
   return async function pinHook(req: FastifyRequest, reply: FastifyReply): Promise<void> {
-    const sha = req.headers[HEADER];
-    if (!sha || typeof sha !== 'string') return;
+    const sha = pinShaFor(req);
+    if (!sha) return;
 
     const resolved = await driver.loadManifest(sha);
     if (!resolved) {
@@ -85,6 +86,21 @@ export function makePinHook(options: PinHookOptions): preHandlerAsyncHookHandler
     }
     req.manifestPin = { sha, resolved, deprecatedRefs: deprecated };
   };
+}
+
+/**
+ * Manifest pin sha resolution. Header takes precedence over query.
+ * Query is supported for `EventSource` clients which can't set
+ * arbitrary headers; everywhere else the header is preferred so the
+ * sha doesn't leak into request logs and caches.
+ */
+function pinShaFor(req: FastifyRequest): string | null {
+  const header = req.headers[HEADER];
+  if (typeof header === 'string' && header.length > 0) return header;
+  const query = req.query as Record<string, unknown> | undefined;
+  const fromQuery = query?.[QUERY_PARAM];
+  if (typeof fromQuery === 'string' && fromQuery.length > 0) return fromQuery;
+  return null;
 }
 
 async function classifyPin(

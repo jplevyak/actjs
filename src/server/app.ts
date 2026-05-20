@@ -33,6 +33,7 @@ import {
 import type { Runtime } from '../runtime/index.js';
 import type { StorageDriver } from '../storage/driver.js';
 
+import { makeAuthHook, type AuthHook } from './auth.js';
 import { handleError } from './errors.js';
 import { makeIdempotencyHooks } from './hooks/idempotency.js';
 import { makePinHook, type PinHookOptions } from './hooks/pin.js';
@@ -43,6 +44,7 @@ import { registerClassRoutes } from './routes/classes.js';
 import { registerHealthRoutes } from './routes/health.js';
 import { registerLegacyRoutes } from './routes/legacy.js';
 import { registerManifestRoutes } from './routes/manifest.js';
+import { registerSseRoute } from './routes/sse.js';
 import { registerWsRoute } from './routes/ws.js';
 import { SubscriptionRegistry } from './subscription-registry.js';
 
@@ -75,6 +77,17 @@ export interface BuildAppOptions {
   readonly wsPingTimeoutMs?: number;
   /** Per-actor subscriber cap (test seam). */
   readonly maxSubscribersPerActor?: number;
+  /**
+   * Authentication hook. Called on every request; the resolved
+   * Principal lands on `req.principal`. When omitted the app runs
+   * fully open with `Principal.anonymous()` (warned at startup outside
+   * NODE_ENV=development).
+   */
+  readonly auth?: AuthHook;
+  /** If true and `auth` returns null/undefined the request gets 401. */
+  readonly requireAuth?: boolean;
+  /** SSE keep-alive interval (ms). Default 25 s. */
+  readonly sseKeepAliveMs?: number;
 }
 
 export async function buildApp(options: BuildAppOptions): Promise<FastifyInstance> {
@@ -87,6 +100,26 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
 
   await app.register(multipart);
   await app.register(websocket);
+
+  // Auth hook: runs first so admin / role checks can read req.principal.
+  const env = process.env['NODE_ENV'];
+  if (!options.auth && env !== 'development' && env !== 'test' && !process.env['VITEST']) {
+    // Single-shot warning. We can't reach a structured logger before
+    // it's wired, so use stderr — operators will see this in their
+    // boot sequence and either supply an `auth` hook or accept the
+    // open-by-default behavior for local/dev.
+    console.warn(
+      'actjs: no `auth` hook configured; every request will be anonymous. ' +
+        'Set NODE_ENV=development to silence this warning.',
+    );
+  }
+  app.addHook(
+    'preHandler',
+    makeAuthHook({
+      ...(options.auth ? { auth: options.auth } : {}),
+      ...(options.requireAuth !== undefined ? { requireAuth: options.requireAuth } : {}),
+    }),
+  );
 
   await app.register(swagger, {
     openapi: {
@@ -150,6 +183,14 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     registry,
     ...(options.wsPingIntervalMs !== undefined ? { pingIntervalMs: options.wsPingIntervalMs } : {}),
     ...(options.wsPingTimeoutMs !== undefined ? { pingTimeoutMs: options.wsPingTimeoutMs } : {}),
+  });
+
+  // SSE fallback transport.
+  registerSseRoute(typedApp, {
+    runtime: options.runtime,
+    driver: options.driver,
+    registry,
+    ...(options.sseKeepAliveMs !== undefined ? { keepAliveMs: options.sseKeepAliveMs } : {}),
   });
 
   // OpenAPI document.

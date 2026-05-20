@@ -13,6 +13,7 @@ import { createClient, type RedisClientType } from 'redis';
 
 import { StatusError } from '../../error.js';
 import GAct, { type RedisLike } from '../../gact.js';
+import { adminOnly } from '../admin.js';
 
 type AsyncFn = (gact: GAct) => Promise<unknown>;
 const AsyncFunctionCtor = Object.getPrototypeOf(async function () {}).constructor as new (
@@ -58,7 +59,7 @@ export async function registerLegacyRoutes(
     done(null, body);
   });
 
-  app.post('/run', async (req: FastifyRequest, reply: FastifyReply) => {
+  app.post('/run', { preHandler: adminOnly }, async (req: FastifyRequest, reply: FastifyReply) => {
     const code = extractCode(req.body, req.headers['content-type']);
     if (!code) throw new StatusError('missing code in request body', 400);
 
@@ -96,29 +97,33 @@ export async function registerLegacyRoutes(
       .send(JSON.stringify(result ?? {}));
   });
 
-  app.post('/upload', async (req: FastifyRequest, reply: FastifyReply) => {
-    if (!req.isMultipart()) {
-      throw new StatusError('multipart/form-data required', 400);
-    }
-    const files: { name: string; data: Buffer }[] = [];
-    for await (const part of req.parts()) {
-      if (part.type === 'file') {
-        files.push({ name: part.filename, data: await part.toBuffer() });
+  app.post(
+    '/upload',
+    { preHandler: adminOnly },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      if (!req.isMultipart()) {
+        throw new StatusError('multipart/form-data required', 400);
       }
-    }
-    if (files.length === 0) throw new StatusError('no files uploaded', 400);
+      const files: { name: string; data: Buffer }[] = [];
+      for await (const part of req.parts()) {
+        if (part.type === 'file') {
+          files.push({ name: part.filename, data: await part.toBuffer() });
+        }
+      }
+      if (files.length === 0) throw new StatusError('no files uploaded', 400);
 
-    const result = await withRedisClient(options.redisUrl, async (client) => {
-      const multi = client.multi();
-      for (const f of files) {
-        multi.set(f.name, f.data.toString('utf8'));
-      }
-      const r = await multi.exec();
-      if (!r) throw new StatusError('upload commit error', 409);
-      return r;
-    });
-    await reply.code(200).send(result);
-  });
+      const result = await withRedisClient(options.redisUrl, async (client) => {
+        const multi = client.multi();
+        for (const f of files) {
+          multi.set(f.name, f.data.toString('utf8'));
+        }
+        const r = await multi.exec();
+        if (!r) throw new StatusError('upload commit error', 409);
+        return r;
+      });
+      await reply.code(200).send(result);
+    },
+  );
 }
 
 function extractCode(body: unknown, contentType: string | undefined): string | null {
