@@ -6,3 +6,7 @@ package-lock.json
 # Snapshot files written by tests; their format is set by the writer
 # (JSON.stringify with 2-space indent), not by Prettier.
 tests/fixtures/
+# Codegen fixtures: expected output is byte-identical to the
+# emitter, so Prettier must not touch it. Class source fixtures
+# are also kept verbatim so the per-class sha is stable.
+tests/codegen/fixtures/

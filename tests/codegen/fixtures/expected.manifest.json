@@ -1,0 +1,11 @@
+{
+  "sha256": "b57a639b74f10befb3231df58d3d25723519408cd65b2cebe60f08242cd926f4",
+  "resolved": {
+    "Cart": "1.2.0",
+    "Ledger": "2.0.0"
+  },
+  "sources": {
+    "Cart": "18e187a12389129368c0826cd62b62aea4740997fbd3813d0de34d07db12a8e1",
+    "Ledger": "718303e093499a246344f7e48b0864bb21eae12e9d72d330bd23be874bff1a40"
+  }
+}

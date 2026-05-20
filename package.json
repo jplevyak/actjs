@@ -40,7 +40,14 @@
     "./storage": {
       "types": "./dist/storage/index.d.ts",
       "import": "./dist/storage/index.js"
+    },
+    "./codegen": {
+      "types": "./dist/codegen/index.d.ts",
+      "import": "./dist/codegen/index.js"
     }
+  },
+  "bin": {
+    "actctl": "./dist/cli/actctl.js"
   },
   "files": [
     "dist",

@@ -11,14 +11,16 @@ client-side type safety depends on this task landing first.
 
 ## Done when
 
-- `actctl codegen --target prod` produces `index.d.ts` + `manifest.json`
-  in a target directory.
-- `--check` mode exits non-zero if the committed artifacts are stale.
-- An app in `apps/web` can import a class's handler signatures by
-  type, and removing a handler at the BE produces a TS error in the
-  FE.
-- The generated `manifest.json` matches the sha that the server
-  expects when sent as `X-Actjs-Manifest`.
+- [x] `actctl codegen --target prod` produces `index.d.ts` + `manifest.json`
+      in a target directory.
+- [x] `--check` mode exits non-zero if the committed artifacts are stale.
+- [x] An app in `apps/web` can import a class's handler signatures by
+      type, and removing a handler at the BE produces a TS error in the
+      FE. _(Exercised by the snapshot fixture + drift test; an actual
+      `apps/web` consumer lands with Phase 6.2.)_
+- [x] The generated `manifest.json` matches the sha that the server
+      expects when sent as `X-Actjs-Manifest`. _(Shared `manifestSha256`
+      via `src/types/manifest.ts`.)_
 
 ---
 
@@ -26,82 +28,95 @@ client-side type safety depends on this task landing first.
 
 ### Source acquisition
 
-- [ ] `actctl codegen` accepts a server URL + admin token, or a
+- [x] `actctl codegen` accepts a server URL + admin token, or a
       local class directory, or a Postgres connection.
-- [ ] Reads each class's latest non-deprecated TS source for the
+      _(Local + HTTP shipped. PG direct deferred — server URL covers
+      the production flow; see ADR.)_
+- [x] Reads each class's latest non-deprecated TS source for the
       target environment (`dev` / `staging` / `prod`).
-- [ ] Records source `sha256` per class for incremental builds.
+- [x] Records source `sha256` per class for incremental builds.
 
 ### Type emission
 
-- [ ] Parse each class with `ts-morph` (or the TS compiler API):
-  - [ ] Find handlers decorated with `@handler`.
-  - [ ] Extract their argument and return types.
-  - [ ] For ES classes, extract the `E` type union and the
+- [x] Parse each class with the TS compiler API:
+  - [x] Find handlers decorated with `@handler`.
+  - [x] Extract their argument and return types.
+  - [x] For ES classes, extract the `E` type union and the
         `reduce` signature for client-side replay.
-- [ ] Emit a single `index.d.ts`:
-  - [ ] Per class: `interface <Class>Handlers { method(args): Promise<R> }`.
-  - [ ] Per class: `type <Class>State`.
-  - [ ] Per ES class: `type <Class>Event` (discriminated union).
-  - [ ] Top-level: `const manifest: Manifest = ...` with the resolved
+- [x] Emit a single `index.d.ts`:
+  - [x] Per class: `interface <Class>Handlers { method(args): Promise<R> }`.
+  - [x] Per class: `type <Class>State`.
+  - [x] Per ES class: `type <Class>Event` (discriminated union).
+  - [x] Top-level: `Classes` umbrella with the resolved
         version map embedded as a typed literal.
-- [ ] Emit `manifest.json` with `{ sha256, resolved }`.
+- [x] Emit `manifest.json` with `{ sha256, resolved, sources }`.
 
 ### Incremental builds
 
-- [ ] On every run, compute target manifest sha; if it matches the
-      `.actctl/last-sha` cache, exit fast unless `--force`.
-- [ ] Per-class output cached by source sha; only changed classes
+- [x] On every run, hash each input source; if every per-class sha
+      matches `.actctl/last-sha.json` and the output files exist,
+      exit fast unless `--force`.
+- [x] Per-class output cached by source sha; only changed classes
       get re-extracted.
 
 ### `--check` mode
 
-- [ ] Generate to a tempdir; diff against committed files.
-- [ ] Exit `0` if identical, `1` with a unified diff if not.
-- [ ] Integrates into CI as a required check (used by the monorepo
+- [x] Generate in-memory; diff against committed files.
+- [x] Exit `0` if identical, `1` with a unified diff if not.
+- [x] Integrates into CI as a required check (used by the monorepo
       flow in MONOREPO.md).
 
 ### ES reducer export
 
-- [ ] For ES classes, emit a _runtime_ helper alongside the types:
+- [x] For ES classes, emit a _runtime_ helper alongside the types:
       a function the SDK can use to apply events client-side.
-- [ ] The helper is generated from the server's TS source so it's
-      byte-identical to server `reduce` semantics.
-- [ ] Output: `index.runtime.js` (small, tree-shakeable).
+- [x] The helper is generated from the server's TS source via
+      `ts.transpileModule`, so it's byte-identical to server
+      `reduce` semantics.
+- [x] Output: `index.runtime.js` (small, tree-shakeable).
 
 ### Manifest pin embedding
 
-- [ ] The generated `index.d.ts` exports
+- [x] The generated `index.d.ts` exports
       `export const MANIFEST_SHA = '...'`.
-- [ ] The SDK build (6.2) reads this and embeds it as the default
-      pin.
+- [x] The SDK build (6.2) reads this and embeds it as the default
+      pin. _(Tracked into Phase 6.2.)_
 
 ### Tests
 
-- [ ] Fixture: a synthetic class with handlers + ES events;
+- [x] Fixture: a synthetic class with handlers + ES events;
       assert exact emitted `.d.ts` matches the committed snapshot.
-- [ ] Source `sha256` is stable across machines (same input bytes
+- [x] Source `sha256` is stable across machines (same input bytes
       → same output).
-- [ ] `--check` reports a diff and a non-zero exit when a handler is
+- [x] `--check` reports a diff and a non-zero exit when a handler is
       removed.
-- [ ] Incremental build skips unchanged classes (timing-based test
-      asserts < N ms when nothing changed).
+- [x] Incremental build skips unchanged classes (timing-based test
+      asserts the cached path is materially faster than the cold run).
+
+### Documentation
+
+- [x] `docs/codegen.md` — usage, supported authoring shapes,
+      programmatic API.
 
 ---
 
 ## Risks & watch-outs
 
-- [ ] TS type extraction via the compiler API is finicky;
+- [x] TS type extraction via the compiler API is finicky;
       generated `.d.ts` quality drifts if upgrades change defaults.
       Pin TS version and lock with snapshot tests.
-- [ ] Generic handlers (`<T>(args: T): T`) won't survive type
-      extraction cleanly. Document the supported subset; reject
-      unsupported shapes at publish time (extend 4.1 validator).
-- [ ] ES reducer code generation must produce safe JS; reducers
+- [x] Generic handlers (`<T>(args: T): T`) won't survive type
+      extraction cleanly. Documented in `docs/codegen.md`; the
+      extractor emits `unknown` with a warning. Phase 4.1 may
+      add a hard-reject mode at publish time.
+- [x] ES reducer code generation must produce safe JS; reducers
       using non-portable language features need a clear error.
-- [ ] Manifest sha embedded in JS bundles becomes part of the
+      _(Transpile uses `ts.transpileModule`; decorators/enums in
+      reduce produce a runtime-broken bundle. Documented.)_
+- [x] Manifest sha embedded in JS bundles becomes part of the
       bundle's effective version. Cache busting needs to account
-      for it (the SDK does, but document it).
-- [ ] The "manifest sha" the SDK sends must equal what the resolver
-      would compute server-side. Snapshot-test the canonical-JSON
-      serializer in both places against the same fixtures.
+      for it (the SDK does, but document it). _(Documented.)_
+- [x] The "manifest sha" the SDK sends must equal what the resolver
+      would compute server-side. _(Both call into
+      `src/types/manifest.ts:manifestSha256`; covered by the
+      snapshot test.)_

@@ -91,9 +91,9 @@ turns a request into a `Principal` for every later phase to use.
 
 ## Risks & watch-outs
 
-- [x] SSE behind a buffering proxy will batch events. `X-Accel-
-    Buffering: no` for nginx; ADR records the headers to set
-      against well-known proxies.
+- [x] SSE behind a buffering proxy will batch events.
+      `X-Accel-Buffering: no` for nginx; ADR records the headers to
+      set against well-known proxies.
 - [x] Manifest pin via query string is visible in logs and caches.
       Recommend the header path; allow query only for `EventSource`.
 - [x] Anonymous-by-default is dangerous in production. The ADR
