@@ -22,10 +22,12 @@ end-to-end.
 - **Storage.** Valkey (hot path, mailboxes, locks) + Postgres (system of
   record: classes, snapshots, event log, audit).
 
-See [PLAN.md](./PLAN.md) for the roadmap, [DESIGN.md](./DESIGN.md) for
-the architecture, [MONOREPO.md](./MONOREPO.md) for the
-frontend↔backend monorepo layout, and [CHANGELOG.md](./CHANGELOG.md)
-for what shipped in which release.
+See [PLAN.md](./PLAN.md) for the v1 design,
+[tasks/ROADMAP.md](./tasks/ROADMAP.md) for what's queued post-8.2,
+[DESIGN.md](./DESIGN.md) for the architecture,
+[MONOREPO.md](./MONOREPO.md) for the frontend↔backend monorepo
+layout, and [CHANGELOG.md](./CHANGELOG.md) for what shipped in which
+release.
 
 ---
 
@@ -189,8 +191,9 @@ static policy(p: Principal, action: PolicyCtx<Cart>): PolicyDecision {
 }
 ```
 
-A YAML DSL handles the common owner-only / role-match / tag-match
-cases without writing JS.
+A YAML DSL for the common owner-only / role-match / tag-match cases is
+roadmapped — see [tasks/ROADMAP.md](./tasks/ROADMAP.md) Tier 5. JS
+`policy()` statics are the supported v1 surface.
 
 ### Migrations
 
@@ -406,20 +409,26 @@ Svelte 5 runes API; `$cart` is a readable store with `call`,
 
 ## `actctl` CLI
 
-| Command                              | What it does                                               |
-| ------------------------------------ | ---------------------------------------------------------- |
-| `actctl dev`                         | Watch local class dir; republish pre-release versions      |
-| `actctl publish <file> --version`    | Publish a class version (Ed25519 signature optional)       |
-| `actctl list`                        | List class versions and their deprecation state            |
-| `actctl deprecate <ref> --grace 30d` | Mark a version deprecated with a grace window              |
-| `actctl promote <ref> --env prod`    | Promote a version through environments                     |
-| `actctl manifest show --root <ref>`  | Resolve a manifest; show the pinned versions and sha       |
-| `actctl manifest in-use`             | Which manifest shas are currently being sent by clients    |
-| `actctl codegen`                     | Generate the `.d.ts` bundle + `manifest.json` for the SDK  |
-| `actctl shell`                       | Admin REPL; arbitrary `await` snippets routed through call |
-| `actctl actor inspect <id>`          | State, recent envelopes, mailbox depth, resolved manifest  |
-| `actctl migrate dry-run`             | Replay a snapshot corpus through every migration chain     |
-| `actctl logs follow --actor <id>`    | Tail structured logs for one actor                         |
+The subcommands marked **shipped** are wired today. Everything else is
+roadmapped to 8.2b — see [tasks/ROADMAP.md](./tasks/ROADMAP.md) Tier 3.
+
+| Command                                    | Status  | What it does                                               |
+| ------------------------------------------ | ------- | ---------------------------------------------------------- |
+| `actctl codegen`                           | shipped | Generate the `.d.ts` bundle + `manifest.json` for the SDK  |
+| `actctl publish --name --version --source` | shipped | Publish a class version (Ed25519 `--sign` optional)        |
+| `actctl key add --kid --pem`               | shipped | Register a publish signing key with the server             |
+| `actctl key revoke --kid`                  | shipped | Revoke a signing key                                       |
+| `actctl dev`                               | 8.2b    | Watch local class dir; republish pre-release versions      |
+| `actctl list`                              | 8.2b    | List class versions and their deprecation state            |
+| `actctl deprecate <ref> --grace 30d`       | 8.2b    | Mark a version deprecated with a grace window              |
+| `actctl promote <ref> --env prod`          | 8.2b    | Promote a version through environments                     |
+| `actctl manifest show --root <ref>`        | 8.2b    | Resolve a manifest; show the pinned versions and sha       |
+| `actctl manifest in-use`                   | 8.2b    | Which manifest shas are currently being sent by clients    |
+| `actctl shell`                             | 8.2b    | Admin REPL; arbitrary `await` snippets routed through call |
+| `actctl actor inspect <id>`                | 8.2b    | State, recent envelopes, mailbox depth, resolved manifest  |
+| `actctl migrate dry-run`                   | 8.2b    | Replay a snapshot corpus through every migration chain     |
+| `actctl logs follow --actor <id>`          | 8.2b    | Tail structured logs for one actor                         |
+| `actctl audit follow`                      | 8.2b    | Tail the audit log (filterable by principal / action)      |
 
 ---
 
@@ -453,30 +462,63 @@ await driver.close();
 - `ValkeyPgStorageDriver` is the production driver (Valkey for hot
   state, PG for the durable record).
 
-`@actjs/test` wraps this with snapshot tests for handlers and
-property-based tests for `reduce` and `migrate`.
+`@actjs/test` (`actjs/test` export) wraps this with a `TestRuntime`
+that mints actors via `t.actor(Ctor)`, drives time deterministically
+via `t.advanceTime(ms)` (fires due reminders), and ships
+framework-agnostic assertions:
+
+```ts
+import { TestRuntime, assertSnapshot, assertEmitted } from 'actjs/test';
+
+const t = await TestRuntime.create({ classes: { Cart } });
+const cart = t.actor(Cart);
+await cart.call.addItem({ sku: 'X', qty: 1 });
+await assertSnapshot(cart, { items: [{ sku: 'X', qty: 1 }] });
+await t.close();
+```
+
+`replayMigrations({ ctor, snapshots })` reports a per-snapshot diff
+through the migration chain. Property-test integration (`fast-check`
+arbitraries) is roadmapped to 8.2c. See [docs/testing.md](./docs/testing.md).
 
 ---
 
 ## Observability
 
-- **Logs.** `pino`; one JSON line per event with `requestId`,
-  `actorId`, `class@version`, `principal`, `manifestSha`.
-- **Traces.** OpenTelemetry. Span per HTTP request, per mailbox
-  message, per actor-to-actor call. W3C trace-context propagated
-  through `Envelope.causation` chains.
-- **Metrics.** Prometheus on `/metrics`:
-  - `actor_message_total{class,method,outcome}`
-  - `actor_mailbox_depth{class}`
-  - `actor_active{class,version}`
-  - `clients_by_manifest{sha}`
-  - `manifest_resolution_seconds`
-  - `event_append_total{class}`, `event_snapshot_total{class}`
-  - Standard Node + PG + Valkey collectors
-- A Grafana dashboard JSON bundle ships in `ops/grafana/`.
-- Every publish, deprecate, policy change, admin RPC, and tombstone
-  is written to the `audit` PG table; optionally mirrored to S3 with
-  object-lock.
+Shipped today:
+
+- **Logs.** `pino` via the `Logger` surface in `actjs/log`; one JSON
+  line per event with `requestId`, `actorId`, `class@version`,
+  `principal.sub`, `manifestSha`. Sensitive headers
+  (`Authorization`, `Idempotency-Key`, capability JWT) are redacted.
+  Per-subsystem env overrides (`ACTJS_LOG_LEVEL_DRIVER`, etc.); the
+  driver defaults to `warn`.
+- **Metrics.** `prom-client` registry exposed at `/metrics` when the
+  `Runtime` is built with a `MetricsRegistry`:
+  - `actjs_actor_message_total{class,method,outcome}` — method
+    label allow-listed (default 50/class → `_other`).
+  - `actjs_actor_active{class,version}`, `actjs_actor_mailbox_depth{class}`
+  - `actjs_clients_by_manifest{sha}` (capped via the manifest tracker)
+  - `actjs_manifest_resolution_seconds`
+  - `actjs_event_append_total{class}`, `actjs_event_snapshot_total{class}`
+  - `actjs_policy_decision_total{class,decision}`,
+    `actjs_rate_limit_drop_total{subject}`,
+    `actjs_capacity_exhausted_total{class}`,
+    `actjs_capability_minted_total{class}`
+  - Standard Node + process collectors
+    See [docs/observability.md](./docs/observability.md) for the full
+    runbook and starter PromQL.
+- **Audit.** Every publish, deprecate, signing-key change,
+  capability mint, admin RPC, and tombstone is written to the
+  `audit` PG table via the strict-mode `Auditor` (best-effort opt-in).
+
+Roadmapped (8.1b — see [tasks/ROADMAP.md](./tasks/ROADMAP.md)):
+
+- OpenTelemetry SDK + W3C trace-context propagation through
+  `Envelope.causation`.
+- `ops/grafana/dashboards/` JSON bundle, `ops/prometheus/alerts.yml`,
+  `compose.observability.yml`.
+- S3 audit mirror (optional, append-only with object-lock).
 
 ---
 
@@ -515,36 +557,55 @@ production.
 
 ## Files
 
-| Path                                  | Purpose                                                         |
-| ------------------------------------- | --------------------------------------------------------------- |
-| `src/actor.ts`                        | `Actor<S>` base class (SWM)                                     |
-| `src/event-sourced.ts`                | `EventSourced<S, E>` base class                                 |
-| `src/replica.ts`                      | `Replica<S>` opt-out-of-persistence base class                  |
-| `src/handler.ts`                      | `@handler` decorator + `getHandlers`                            |
-| `src/types/`                          | `ActorId`, `ClassName`, `Version`, `Manifest`, `Envelope<T>`    |
-| `src/storage/`                        | `StorageDriver` interface + memory and Valkey/PG drivers        |
-| `src/runtime/`                        | `Runtime`, `ActorHost`, `Mailbox`, `ClassLoader`, reminders     |
-| `src/registry/`                       | Resolver, publisher, manifest tracker                           |
-| `src/server/`                         | Fastify app, REST routes, WS endpoint, hooks (pin, idempotency) |
-| `src/server/subscription-registry.ts` | Per-actor subscription fan-out for WS / SSE                     |
-| `migrations/`                         | Postgres schema (`0001_init.up.sql`, etc.)                      |
-| `ops/`                                | `valkey.conf`, Grafana dashboards, backup scripts               |
-| `tasks/`                              | Per-phase implementation tasks + ADRs (see PLAN.md)             |
-| `tests/`                              | Vitest unit + integration tests                                 |
-| `Dockerfile`                          | Multi-stage build, distroless final stage                       |
-| `docker-compose.yml`                  | Local stack: actjs + Valkey + Postgres                          |
+| Path                                  | Purpose                                                                                  |
+| ------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `src/actor.ts`                        | `Actor<S>` base class (SWM)                                                              |
+| `src/event-sourced.ts`                | `EventSourced<S, E>` base class                                                          |
+| `src/replica.ts`                      | `Replica<S>` opt-out-of-persistence base class                                           |
+| `src/handler.ts`                      | `@handler` decorator + `getHandlers`                                                     |
+| `src/types/`                          | `ActorId`, `ClassName`, `Version`, `Manifest`, `Envelope<T>`, `Principal`                |
+| `src/storage/`                        | `StorageDriver` interface + memory and Valkey/PG drivers (incl. fence token)             |
+| `src/runtime/`                        | `Runtime`, `ActorHost`, `Mailbox`, `ClassLoader`, reminder dispatcher                    |
+| `src/registry/`                       | Resolver, publisher, manifest tracker, `MemorySigningKeyRegistry`                        |
+| `src/policy/`                         | `policy()` evaluation, capability JWTs, `MemoryBlocklist`                                |
+| `src/limits/`                         | `RateLimiter` (token bucket), `CapacityExhaustedError`                                   |
+| `src/audit/`                          | `Auditor`, `AUDIT_ACTIONS`, strict/best-effort write modes                               |
+| `src/log/`                            | `Logger` surface (pino-backed, noop, collecting), redaction list                         |
+| `src/metrics/`                        | `MetricsRegistry` (prom-client) + cardinality guards                                     |
+| `src/wire/`                           | JSON-RPC envelope types shared between server + client                                   |
+| `src/codegen/`                        | `actctl codegen` — `.d.ts` + manifest emitter                                            |
+| `src/client/`                         | `@actjs/client` — WS transport, RPC, subscriptions, offline queue                        |
+| `src/bindings/`                       | `@actjs/react` + `@actjs/svelte` adapters; refcounted ActorStore                         |
+| `src/cli/`                            | `actctl` CLI                                                                             |
+| `src/test/`                           | `@actjs/test` — `TestRuntime`, assertions, `replayMigrations`                            |
+| `src/server/`                         | Fastify app, REST routes, WS endpoint, hooks (pin, idempotency, auth)                    |
+| `src/server/subscription-registry.ts` | Per-actor subscription fan-out for WS / SSE                                              |
+| `migrations/`                         | Postgres schema (`0001_init`, `0002_reminders`, `0003_signing_keys`, `0004_actor_fence`) |
+| `docs/`                               | Operator runbooks (auth, observability, ops-hardening, testing)                          |
+| `tasks/`                              | Per-phase implementation tasks + ADRs + [ROADMAP.md](./tasks/ROADMAP.md)                 |
+| `tests/`                              | Vitest unit + integration tests                                                          |
+| `Dockerfile`                          | Multi-stage build, distroless final stage                                                |
+| `docker-compose.yml`                  | Local stack: actjs + Valkey + Postgres                                                   |
 
 ---
 
 ## Project status
 
-actjs is built phase-by-phase against [PLAN.md](./PLAN.md). The
-[CHANGELOG](./CHANGELOG.md) is the authoritative record of what has
-shipped in each release; this README describes the v1.0 surface area
-the PLAN targets. Per-phase task files and ADRs live in
-[`tasks/`](./tasks/).
+actjs is built phase-by-phase against [PLAN.md](./PLAN.md). Phases
+0 through 8.2 have shipped, plus the Phase 9 cluster-seam audit;
+follow-up work that was deferred from each phase is tracked in
+[tasks/ROADMAP.md](./tasks/ROADMAP.md). The [CHANGELOG](./CHANGELOG.md)
+is the authoritative record of what has shipped in each release;
+this README describes the v1.0 surface area the PLAN targets, with
+explicit roadmap markers wherever a piece is queued for a follow-up.
+Per-phase task files and ADRs live in [`tasks/`](./tasks/).
 
 Phase 9 (multi-node clustering) is sketched in PLAN.md but
-deliberately not in v1; the `StorageDriver` interface and the
-`ActorHost` ownership model are designed so a later directory-by-owner
-implementation slots in without rewriting earlier phases.
+deliberately not in v1. The 2026-05-20 cluster-seam audit verified
+the directory boundary, idempotency, durable inbox, manifest envelope,
+reminder durability, and storage driver boundary; the audit closed
+three gaps (fence-token plumbing through driver + host, WS
+manifest-pin capture per connection, reminders dispatcher key
+parameterization) so the v2 implementation tasks (`9.1` through
+`9.7`) land without rewriting earlier phases. See
+[phase-9-cluster-seams.adr.md](./tasks/phase-9-cluster-seams.adr.md).

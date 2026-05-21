@@ -96,12 +96,23 @@ have real users to complain about them.
 
 ### Tier 6 — clustering (Phase 9)
 
-12. **9 — Cluster seams.** v1 ships single-node; the
-    `phase-9-cluster-seams.md` review checklist has guarded the
-    seams across earlier phases. Trigger for actual implementation
-    work: enough demand for multi-node deployments. When that
-    arrives, break out the items at the bottom of `phase-9-*.md`
-    into their own session-sized tasks.
+12. **9.x — v2 cluster implementation tasks.** The seam audit shipped
+    2026-05-20 (see Shipped). The implementation work — placement,
+    membership, cross-node RPC, hot migration, client routing,
+    operational story, cross-actor manifest propagation — is broken
+    out at the bottom of `phase-9-cluster-seams.md`. Each becomes its
+    own session-sized task + ADR when v2 starts.
+
+    **Natural entry point:** **9.2 — Placement.** Consistent hashing
+    on `actorId` + per-node ownership claim via
+    `driver.bumpActorFence(id, expected)` on activate. The fence-token
+    plumbing already lands in v1; 9.2 just wires up the caller. From
+    there the dependency order is 9.1 (Membership) → 9.3 (RPC) → 9.4
+    (Hot migration) → 9.5 (Client routing) → 9.6 (Ops story).
+
+    **9.7 — Cross-actor manifest propagation** is the documented v2
+    gap from the audit: in-process `actjs.call(ref, ...)` doesn't
+    carry the request's manifest pin. AsyncLocalStorage candidate.
 
 ---
 
@@ -127,7 +138,9 @@ Don't pick a date — pick a signal:
   functions to want a declarative DSL and is willing to argue about
   CEL vs CUE vs hand-rolled.
 - **Tier 6 fires** when there's actual demand for clustering, not
-  a sense that "v1 should support multiple nodes."
+  a sense that "v1 should support multiple nodes." The seam audit
+  already ran; v2 work starts at 9.2 (Placement) without needing
+  another seam pass.
 
 ---
 
@@ -153,4 +166,23 @@ When a new follow-up is uncovered:
 
 ## Shipped
 
-_(empty — populate as follow-ups land)_
+- **2026-05-20 — Phase 9 cluster-seam audit + minimum fixes.** Audited
+  each of the placement / fencing / idempotency / inbox / manifest /
+  reminders / driver-boundary seams against the actual codebase.
+  Three real gaps were closed with minimum-invasive changes (no v2
+  cluster code):
+  - Fence-token plumbing: `StaleFenceTokenError`, driver
+    `loadActorFence` / `bumpActorFence`, optional `expectedFence` on
+    `saveSnapshot` / `appendEvents`, `ActorHost` stashes the token on
+    activate and threads it through every write. Migration
+    `0004_actor_fence.up.sql` adds `actor.fence bigint`. The check is
+    a noop in v1 single-owner deployments; v2 placement (task 9.2)
+    will start bumping and writes from a stale owner will start
+    failing without further runtime changes.
+  - WS manifest pin captured per-connection alongside `req.principal`.
+  - `ValkeyPgOptions.remindersKey` parameterized so v2 sharding can
+    substitute a per-time-bucket scheme.
+
+  One documented v2 gap: in-process cross-actor manifest propagation
+  (`actjs.call(ref, ...)` inside a handler doesn't carry the
+  originating request's pin). Tracked as task **9.7**.

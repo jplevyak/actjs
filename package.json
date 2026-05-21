@@ -41,6 +41,10 @@
       "types": "./dist/storage/index.d.ts",
       "import": "./dist/storage/index.js"
     },
+    "./server": {
+      "types": "./dist/server/app.d.ts",
+      "import": "./dist/server/app.js"
+    },
     "./codegen": {
       "types": "./dist/codegen/index.d.ts",
       "import": "./dist/codegen/index.js"
