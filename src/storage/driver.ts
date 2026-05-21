@@ -166,6 +166,28 @@ export class VersionAlreadyPublishedError extends StorageError {
   }
 }
 
+/**
+ * Thrown when a write arrives with an `expectedFence` that no longer
+ * matches the actor's stored fence token. v1 never bumps the token,
+ * so this never fires in single-node deployments — the check exists
+ * so v2 clustering can land without rewriting the storage layer or
+ * `ActorHost` (see Phase 9 cluster-seam audit).
+ */
+export class StaleFenceTokenError extends StorageError {
+  readonly actorId: ActorId;
+  readonly expected: bigint;
+  readonly actual: bigint;
+  constructor(actorId: ActorId, expected: bigint, actual: bigint) {
+    super(
+      `stale fence token for actor ${actorId as string}: expected ${expected}, got ${actual}`,
+      'StaleFenceToken',
+    );
+    this.actorId = actorId;
+    this.expected = expected;
+    this.actual = actual;
+  }
+}
+
 /* -------------------------------------------------------------------------- *
  *  Driver
  * -------------------------------------------------------------------------- */
@@ -187,11 +209,36 @@ export interface StorageDriver {
   /** Mark an actor tombstoned. Snapshots and events remain for audit. */
   tombstoneActor(id: ActorId): Promise<void>;
 
+  /**
+   * Read the actor's current fence token. Default `0n` for actors
+   * that have never been activated. Used by `ActorHost.activate` to
+   * stash the token; written back to subsequent `appendEvents` and
+   * `saveSnapshot` calls as `expectedFence`. v1 never bumps the
+   * token — see Phase 9 cluster-seam ADR.
+   */
+  loadActorFence(id: ActorId): Promise<bigint>;
+
+  /**
+   * Bump the fence token and return the new value. v2 cluster
+   * placement calls this on a fresh ownership claim; v1 ActorHost
+   * doesn't call it (single owner, token stays at 0).
+   */
+  bumpActorFence(id: ActorId, expected: bigint): Promise<bigint>;
+
   /** Read the highest-seq snapshot for an actor, or null. */
   loadSnapshot<S = unknown>(id: ActorId): Promise<SnapshotRead<S> | null>;
 
-  /** Write a snapshot (replaces same-seq row if it exists). */
-  saveSnapshot<S = unknown>(id: ActorId, snap: SnapshotWrite<S>): Promise<void>;
+  /**
+   * Write a snapshot (replaces same-seq row if it exists). When
+   * `expectedFence` is supplied, the driver validates it against the
+   * stored fence and throws {@link StaleFenceTokenError} on
+   * mismatch — a no-op in v1 single-owner deployments.
+   */
+  saveSnapshot<S = unknown>(
+    id: ActorId,
+    snap: SnapshotWrite<S>,
+    expectedFence?: bigint,
+  ): Promise<void>;
 
   /* --------------------- Events (ES) -------------------------- */
 
@@ -200,8 +247,12 @@ export interface StorageDriver {
    *
    * The driver is responsible for assigning seqs starting at
    * `currentHead + 1`. Empty batches no-op and return the prior head.
+   *
+   * When `expectedFence` is supplied, the driver validates it against
+   * the stored fence and throws {@link StaleFenceTokenError} on
+   * mismatch — see {@link saveSnapshot}.
    */
-  appendEvents(id: ActorId, events: EventWrite[]): Promise<AppendResult>;
+  appendEvents(id: ActorId, events: EventWrite[], expectedFence?: bigint): Promise<AppendResult>;
 
   /** Stream events from `fromSeq` (inclusive) to head. */
   readEvents(id: ActorId, fromSeq: bigint): AsyncIterable<EventRecord>;

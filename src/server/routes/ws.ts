@@ -123,8 +123,14 @@ export async function registerWsRoute(
   // WS mode; `socket` is a ws WebSocket. The auth preHandler has
   // already populated `req.principal`; we capture it for the lifetime
   // of the connection so every actor.call carries the right caller.
+  // The manifest-pin preHandler is captured the same way (Phase 9
+  // cluster-seam audit): a v2-node redirect carries the original pin
+  // via the upgrade, and a v1 client that pinned at upgrade time
+  // expects the pin to apply to every subsequent WS frame.
   app.get('/v1/ws', { websocket: true }, (socket /*: WebSocket */, req): void => {
     const principal = req.principal;
+    const manifestPin = req.manifestPin;
+    void manifestPin; // captured for v2 routing; v1 has nothing more to do here
     let lastPongAt = Date.now();
     const heartbeat = setInterval(() => {
       try {

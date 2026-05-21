@@ -24,6 +24,7 @@ import {
   type ResolvedManifest,
   type SnapshotRead,
   type SnapshotWrite,
+  StaleFenceTokenError,
   type StorageDriver,
   VersionAlreadyPublishedError,
 } from './driver.js';
@@ -35,6 +36,8 @@ interface ActorRow {
   lastActiveAt?: number;
   tombstonedAt?: number;
   tags: Record<string, string>;
+  /** Phase-9 fence token. Always `0n` in v1; v2 cluster bumps on placement claim. */
+  fence: bigint;
 }
 
 interface SnapshotRow {
@@ -107,7 +110,23 @@ export class MemoryStorageDriver implements StorageDriver {
       version,
       createdAt: this.now(),
       tags,
+      fence: 0n,
     });
+  }
+
+  async loadActorFence(id: ActorId): Promise<bigint> {
+    return this.actors.get(id)?.fence ?? 0n;
+  }
+
+  async bumpActorFence(id: ActorId, expected: bigint): Promise<bigint> {
+    const row = this.actors.get(id);
+    const actual = row?.fence ?? 0n;
+    if (actual !== expected) {
+      throw new StaleFenceTokenError(id, expected, actual);
+    }
+    const next = expected + 1n;
+    if (row) row.fence = next;
+    return next;
   }
 
   async tombstoneActor(id: ActorId): Promise<void> {
@@ -138,7 +157,12 @@ export class MemoryStorageDriver implements StorageDriver {
     };
   }
 
-  async saveSnapshot<S = unknown>(id: ActorId, snap: SnapshotWrite<S>): Promise<void> {
+  async saveSnapshot<S = unknown>(
+    id: ActorId,
+    snap: SnapshotWrite<S>,
+    expectedFence?: bigint,
+  ): Promise<void> {
+    this.assertFence(id, expectedFence);
     let bucket = this.snapshotsByActor.get(id);
     if (!bucket) {
       bucket = new Map();
@@ -153,9 +177,22 @@ export class MemoryStorageDriver implements StorageDriver {
     if (actor) actor.lastActiveAt = this.now();
   }
 
+  private assertFence(id: ActorId, expected: bigint | undefined): void {
+    if (expected === undefined) return;
+    const actual = this.actors.get(id)?.fence ?? 0n;
+    if (actual !== expected) {
+      throw new StaleFenceTokenError(id, expected, actual);
+    }
+  }
+
   /* ------------------------------------------------------ Events */
 
-  async appendEvents(id: ActorId, events: EventWrite[]): Promise<AppendResult> {
+  async appendEvents(
+    id: ActorId,
+    events: EventWrite[],
+    expectedFence?: bigint,
+  ): Promise<AppendResult> {
+    this.assertFence(id, expectedFence);
     const head = this.headSeqByActor.get(id) ?? 0n;
     if (events.length === 0) return { seq: head };
     const actor = this.actors.get(id);

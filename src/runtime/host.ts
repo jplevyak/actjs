@@ -214,6 +214,14 @@ export class ActorHost {
   private readonly capabilityIssuer: import('../policy/capability.js').CapabilityIssuer | null;
   private readonly auditor: import('../audit/index.js').Auditor | null;
   private readonly promMetrics: import('../metrics/index.js').MetricsRegistry | null;
+  /**
+   * Phase-9 fence token. Read on activate (always `0n` in v1 single-owner
+   * deployments), passed back to every `appendEvents` / `saveSnapshot`
+   * call. v2 cluster placement bumps this on ownership claim; the
+   * driver-side check refuses stale writes without further runtime
+   * changes. See `StaleFenceTokenError`.
+   */
+  private fenceToken: bigint = 0n;
   /** The class version the activated instance is actually running. */
   private runningVersion: Version;
   /** sha256 of the running class source; used to release the loader refcount. */
@@ -268,6 +276,10 @@ export class ActorHost {
     const persisted = snap?.version ?? null;
     const { ctor, runningVersion, willMigrateSnap } = await this.resolveCtor(persisted);
     this.runningVersion = runningVersion;
+    // Phase-9 seam: stash the current fence so all subsequent writes
+    // can pass it back to the driver. v1 single-owner never bumps the
+    // token; v2 placement will.
+    this.fenceToken = await this.driver.loadActorFence(this.id);
 
     this.instance = new ctor();
     this.instance.actor_id = this.id;
@@ -453,12 +465,16 @@ export class ActorHost {
     }
     // Retain the prior snapshot under the sentinel seq for the
     // configurable retention window (Phase 7.2 sweeps).
-    await this.driver.saveSnapshot(this.id, {
-      class: this.className,
-      version: prevVersion,
-      seq: -1n,
-      state: prevState,
-    });
+    await this.driver.saveSnapshot(
+      this.id,
+      {
+        class: this.className,
+        version: prevVersion,
+        seq: -1n,
+        state: prevState,
+      },
+      this.fenceToken,
+    );
     const newState = await this.instance.migrate(prevState, prevVersion as string);
     this.instance.state = newState;
     this.metrics.migrationsApplied++;
@@ -657,7 +673,7 @@ export class ActorHost {
     }
 
     const writes = events.map((e) => normalizeEvent(e));
-    const append = await this.driver.appendEvents(this.id, writes);
+    const append = await this.driver.appendEvents(this.id, writes, this.fenceToken);
     const es = this.instance as EventSourced<object, unknown>;
     let state = es.state;
     for (const e of events) state = es.reduce(state, e);
@@ -767,12 +783,16 @@ export class ActorHost {
   private async flushSnapshot(): Promise<void> {
     if (!this.snapshotDirty || !this.instance) return;
     this.snapshotDirty = false;
-    await this.driver.saveSnapshot(this.id, {
-      class: this.className,
-      version: this.runningVersion,
-      seq: this.isEs ? this.currentSeq : 0n,
-      state: this.instance.snapshot(),
-    });
+    await this.driver.saveSnapshot(
+      this.id,
+      {
+        class: this.className,
+        version: this.runningVersion,
+        seq: this.isEs ? this.currentSeq : 0n,
+        state: this.instance.snapshot(),
+      },
+      this.fenceToken,
+    );
     this.metrics.snapshotsWritten++;
     this.promMetrics?.recordSnapshot(this.className as string);
     if (this.isEs) this.eventsSinceSnapshot = 0;

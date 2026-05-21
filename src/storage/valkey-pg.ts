@@ -28,6 +28,7 @@ import {
   type ResolvedManifest,
   type SnapshotRead,
   type SnapshotWrite,
+  StaleFenceTokenError,
   type StorageDriver,
   VersionAlreadyPublishedError,
 } from './driver.js';
@@ -45,12 +46,21 @@ export interface ValkeyPgOptions {
   hotTtlSeconds?: number;
   /** Pool size. Falls back to pg.Pool default. */
   maxConnections?: number;
+  /**
+   * Override the reminders ZSET key. Default `k.reminders` (= 'reminders').
+   * v2 cluster will shard by time bucket; this seam exists so the
+   * sharded driver can substitute its own scheme without touching
+   * either the dispatcher or the call sites. See Phase 9.
+   */
+  remindersKey?: string;
 }
 
 export class ValkeyPgStorageDriver implements StorageDriver {
   private pool!: pg.Pool;
   private redis!: RedisClientType;
-  private readonly options: Required<Pick<ValkeyPgOptions, 'applyMigrations' | 'hotTtlSeconds'>> &
+  private readonly options: Required<
+    Pick<ValkeyPgOptions, 'applyMigrations' | 'hotTtlSeconds' | 'remindersKey'>
+  > &
     ValkeyPgOptions;
   /** Counts snapshot writes that exceed the warn threshold (Phase 8 metric). */
   oversizedSnapshotCount = 0;
@@ -59,6 +69,7 @@ export class ValkeyPgStorageDriver implements StorageDriver {
     this.options = {
       applyMigrations: true,
       hotTtlSeconds: 0,
+      remindersKey: k.reminders,
       ...options,
     };
   }
@@ -126,6 +137,38 @@ export class ValkeyPgStorageDriver implements StorageDriver {
     await this.redis.del(k.actorHot(id)).catch(() => 0);
   }
 
+  async loadActorFence(id: ActorId): Promise<bigint> {
+    const r = await this.pool.query<{ fence: string }>(
+      `SELECT fence::text AS fence FROM actor WHERE id = $1`,
+      [id],
+    );
+    const v = r.rows[0]?.fence;
+    return v === undefined ? 0n : BigInt(v);
+  }
+
+  async bumpActorFence(id: ActorId, expected: bigint): Promise<bigint> {
+    const next = expected + 1n;
+    const r = await this.pool.query<{ fence: string }>(
+      `UPDATE actor SET fence = $2
+       WHERE id = $1 AND fence = $3
+       RETURNING fence::text AS fence`,
+      [id, next.toString(), expected.toString()],
+    );
+    if (r.rowCount === 0) {
+      const actual = await this.loadActorFence(id);
+      throw new StaleFenceTokenError(id, expected, actual);
+    }
+    return next;
+  }
+
+  private async assertFence(id: ActorId, expected: bigint | undefined): Promise<void> {
+    if (expected === undefined) return;
+    const actual = await this.loadActorFence(id);
+    if (actual !== expected) {
+      throw new StaleFenceTokenError(id, expected, actual);
+    }
+  }
+
   /* ----------------------------------------------------- Snapshots */
 
   async loadSnapshot<S = unknown>(id: ActorId): Promise<SnapshotRead<S> | null> {
@@ -172,7 +215,12 @@ export class ValkeyPgStorageDriver implements StorageDriver {
     return snap;
   }
 
-  async saveSnapshot<S = unknown>(id: ActorId, snap: SnapshotWrite<S>): Promise<void> {
+  async saveSnapshot<S = unknown>(
+    id: ActorId,
+    snap: SnapshotWrite<S>,
+    expectedFence?: bigint,
+  ): Promise<void> {
+    await this.assertFence(id, expectedFence);
     const bytes = encodeSnapshot(snap.state);
     if (isOversizedSnapshot(bytes)) this.oversizedSnapshotCount++;
     await this.pool.query(
@@ -218,7 +266,12 @@ export class ValkeyPgStorageDriver implements StorageDriver {
 
   /* ---------------------------------------------------- Events (ES) */
 
-  async appendEvents(id: ActorId, events: EventWrite[]): Promise<AppendResult> {
+  async appendEvents(
+    id: ActorId,
+    events: EventWrite[],
+    expectedFence?: bigint,
+  ): Promise<AppendResult> {
+    await this.assertFence(id, expectedFence);
     if (events.length === 0) {
       return { seq: await this.headEventSeq(id) };
     }
@@ -341,7 +394,7 @@ export class ValkeyPgStorageDriver implements StorageDriver {
       [reminderId, when, msg.actorId, msg.className, msg.type, JSON.stringify(msg.payload)],
     );
     const member = JSON.stringify({ id: reminderId, msg });
-    await this.redis.zAdd(k.reminders, { score: when, value: member });
+    await this.redis.zAdd(this.options.remindersKey, { score: when, value: member });
   }
 
   async *popDueReminders(now: number, limit: number): AsyncIterable<ReminderMsg> {
@@ -353,7 +406,7 @@ export class ValkeyPgStorageDriver implements StorageDriver {
       return members
     `;
     const members = (await this.redis.eval(script, {
-      keys: [k.reminders],
+      keys: [this.options.remindersKey],
       arguments: [String(now), String(limit)],
     })) as string[];
     if (members.length === 0) return;
@@ -395,7 +448,7 @@ export class ValkeyPgStorageDriver implements StorageDriver {
         payload: row.payload,
       };
       const member = JSON.stringify({ id: row.id, msg });
-      await this.redis.zAdd(k.reminders, {
+      await this.redis.zAdd(this.options.remindersKey, {
         score: Number(row.when_ms),
         value: member,
       });

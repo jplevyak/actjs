@@ -13,6 +13,13 @@ export const k = {
   actorInbox: (id: ActorId) => `actor:${id as string}:inbox`,
   actorMeta: (id: ActorId) => `actor:${id as string}:meta`,
 
+  /**
+   * Reminders ZSET key. v1 uses a single global key; v2 cluster will
+   * shard by time bucket — see Phase 9 cluster-seam audit. The
+   * `ValkeyPgStorageDriver` accepts an override via the `remindersKey`
+   * option so a future sharded driver can substitute its own scheme
+   * without touching the dispatcher.
+   */
   reminders: 'reminders',
 
   manifestCache: (sha: string) => `manifest:${sha}`,
