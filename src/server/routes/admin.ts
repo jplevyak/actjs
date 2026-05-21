@@ -6,6 +6,8 @@
  */
 import { z } from 'zod';
 
+import { StatusError } from '../../error.js';
+import type { SigningKeyRegistry } from '../../registry/index.js';
 import { adminOnly } from '../admin.js';
 import type { TypedFastifyInstance } from '../app.js';
 import type { ManifestUsageTracker } from '../manifest-tracker.js';
@@ -23,9 +25,27 @@ const InUseResponse = z.object({
   otherLastSeen: z.number(),
 });
 
+const KeyAddBody = z.object({
+  publicKeyPem: z.string(),
+});
+
+const KeyResponse = z.object({
+  kid: z.string(),
+  algorithm: z.string(),
+  addedAt: z.number(),
+  revokedAt: z.number().optional(),
+});
+
+const KeyParam = z.object({ kid: z.string().min(1) });
+
+export interface AdminRoutesOptions {
+  readonly signingKeys?: SigningKeyRegistry;
+}
+
 export function registerAdminRoutes(
   app: TypedFastifyInstance,
   tracker: ManifestUsageTracker,
+  options: AdminRoutesOptions = {},
 ): void {
   app.get(
     '/v1/admin/manifests/in-use',
@@ -53,4 +73,62 @@ export function registerAdminRoutes(
       };
     },
   );
+
+  if (options.signingKeys) {
+    const signingKeys = options.signingKeys;
+    app.post(
+      '/v1/admin/signing-keys/:kid',
+      {
+        preHandler: adminOnly,
+        schema: {
+          summary: 'Register a signing public key (admin)',
+          tags: ['admin'],
+          params: KeyParam,
+          body: KeyAddBody,
+          response: { 201: KeyResponse },
+        },
+      },
+      async (req, reply) => {
+        await signingKeys.add(
+          req.params.kid,
+          req.body.publicKeyPem,
+          (req.headers['x-actjs-admin-id'] as string | undefined) ?? 'admin',
+        );
+        const rec = await signingKeys.get(req.params.kid);
+        if (!rec) throw new StatusError('signing key disappeared after add', 500);
+        await reply.code(201).send({
+          kid: rec.kid,
+          algorithm: rec.algorithm,
+          addedAt: rec.addedAt,
+          ...(rec.revokedAt !== undefined ? { revokedAt: rec.revokedAt } : {}),
+        });
+      },
+    );
+    app.delete(
+      '/v1/admin/signing-keys/:kid',
+      {
+        preHandler: adminOnly,
+        schema: {
+          summary: 'Revoke a signing key (admin)',
+          tags: ['admin'],
+          params: KeyParam,
+          response: { 200: KeyResponse },
+        },
+      },
+      async (req) => {
+        await signingKeys.revoke(
+          req.params.kid,
+          (req.headers['x-actjs-admin-id'] as string | undefined) ?? 'admin',
+        );
+        const rec = await signingKeys.get(req.params.kid);
+        if (!rec) throw new StatusError('signing key not found', 404);
+        return {
+          kid: rec.kid,
+          algorithm: rec.algorithm,
+          addedAt: rec.addedAt,
+          ...(rec.revokedAt !== undefined ? { revokedAt: rec.revokedAt } : {}),
+        };
+      },
+    );
+  }
 }

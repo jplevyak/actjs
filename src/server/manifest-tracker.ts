@@ -34,6 +34,11 @@ export interface ManifestUsageTrackerOptions {
   readonly maxShas?: number;
   /** Test seam: settable clock. */
   readonly now?: () => number;
+  /**
+   * Optional metrics registry; the tracker updates the
+   * `clients_by_manifest{sha}` gauge alongside its internal counters.
+   */
+  readonly metrics?: import('../metrics/index.js').MetricsRegistry;
 }
 
 interface Entry {
@@ -46,11 +51,13 @@ export class ManifestUsageTracker {
   private readonly entries = new Map<string, Entry>();
   private readonly maxShas: number;
   private readonly now: () => number;
+  private readonly metrics: import('../metrics/index.js').MetricsRegistry | undefined;
   private other = { count: 0, lastSeen: 0 };
 
   constructor(options: ManifestUsageTrackerOptions = {}) {
     this.maxShas = options.maxShas ?? DEFAULT_MAX_SHAS;
     this.now = options.now ?? Date.now;
+    this.metrics = options.metrics;
   }
 
   /**
@@ -64,11 +71,13 @@ export class ManifestUsageTracker {
     if (existing) {
       existing.count++;
       existing.lastSeen = this.now();
+      this.metrics?.clientsByManifest.set({ sha }, existing.count);
       return;
     }
     if (this.entries.size >= this.maxShas) {
       this.other.count++;
       this.other.lastSeen = this.now();
+      this.metrics?.clientsByManifest.set({ sha: OTHER_BUCKET }, this.other.count);
       return;
     }
     const entry: Entry = {
@@ -77,6 +86,7 @@ export class ManifestUsageTracker {
       ...(resolved ? { resolved } : {}),
     };
     this.entries.set(sha, entry);
+    this.metrics?.clientsByManifest.set({ sha }, 1);
   }
 
   /** Snapshot of the current report. */

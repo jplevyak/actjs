@@ -77,6 +77,8 @@ export function registerActorRoutes(
       },
     },
     async (req, reply) => {
+      const className = asClassName(req.params.class);
+      runtime.checkCreate(className, req.body ?? {}, req.principal);
       const id = mkActorId();
       const resp: { class: string; id: string; manifest?: string } = {
         class: req.params.class,
@@ -112,6 +114,8 @@ export function registerActorRoutes(
           409,
         );
       }
+      // Run a read-policy check against the current snapshot.
+      await runtime.checkRead(asClassName(snap.class as string), id, req.principal);
       return {
         class: snap.class as string,
         id: id as string,
@@ -137,7 +141,7 @@ export function registerActorRoutes(
       const className = asClassName(req.params.class);
       const id = asActorId(req.params.id);
       const method = req.params.method;
-      const result = await runtime.call(className, id, method, req.body ?? {});
+      const result = await runtime.call(className, id, method, req.body ?? {}, req.principal);
       const resp: {
         class: string;
         id: string;
@@ -167,7 +171,7 @@ export function registerActorRoutes(
     },
     async (req) => {
       const id = asActorId(req.params.id);
-      await runtime.tombstone(id);
+      await runtime.tombstone(id, req.principal);
       return {
         class: req.params.class,
         id: id as string,

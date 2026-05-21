@@ -120,8 +120,11 @@ export async function registerWsRoute(
   const pingTimeoutMs = options.pingTimeoutMs ?? DEFAULT_PING_TIMEOUT_MS;
 
   // The Fastify `websocket: true` route option flips the handler into
-  // WS mode; `socket` is a ws WebSocket.
-  app.get('/v1/ws', { websocket: true }, (socket /*: WebSocket */, _req): void => {
+  // WS mode; `socket` is a ws WebSocket. The auth preHandler has
+  // already populated `req.principal`; we capture it for the lifetime
+  // of the connection so every actor.call carries the right caller.
+  app.get('/v1/ws', { websocket: true }, (socket /*: WebSocket */, req): void => {
+    const principal = req.principal;
     let lastPongAt = Date.now();
     const heartbeat = setInterval(() => {
       try {
@@ -210,6 +213,7 @@ export async function registerWsRoute(
               asActorId(p.id) as ActorId,
               p.method,
               p.args,
+              principal,
             );
             if (id !== undefined) {
               send({ jsonrpc: '2.0', id, result: { result } });

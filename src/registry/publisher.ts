@@ -15,11 +15,12 @@
  * Storage-level duplicates (same name+version) bubble up as the
  * `VersionAlreadyPublishedError` defined in Phase 2.
  */
-import { randomUUID, createHash } from 'node:crypto';
+import { createHash } from 'node:crypto';
 
 import semver from 'semver';
 import ts from 'typescript';
 
+import { AUDIT_ACTIONS, Auditor } from '../audit/index.js';
 import type { DepsMap, PublishClassInput, StorageDriver } from '../storage/driver.js';
 import type { ClassName, Version } from '../types/index.js';
 
@@ -37,6 +38,22 @@ export interface PublishInput {
   readonly eventSourced?: boolean;
   /** Principal performing the publish. Surfaces in the audit log. */
   readonly principal?: string;
+  /**
+   * Optional signature attesting the publish. Verified against the
+   * provided signing-key registry; the verified `kid` is recorded on
+   * the class_version row as `signed_by` and forwarded to the audit
+   * `class.signed` entry.
+   */
+  readonly signature?: { kid: string; signature: Buffer };
+}
+
+export interface PublishOptions {
+  /** Auditor used to record `class.published` (+ `class.signed`). */
+  readonly auditor?: Auditor;
+  /** Signing-key registry used to verify `input.signature`. */
+  readonly signingKeys?: import('./signing.js').SigningKeyVerifier;
+  /** When true, an unsigned publish is rejected. */
+  readonly requireSignedClasses?: boolean;
 }
 
 /* --------------------------------------------------------- Errors */
@@ -82,6 +99,18 @@ export class ForbiddenImport extends PublishError {
       `published class source must be a function body — top-level import/export is not allowed: ${statement}`,
       'ForbiddenImport',
     );
+  }
+}
+
+export class SignatureRequired extends PublishError {
+  constructor() {
+    super('requireSignedClasses is true; publish must include a signature', 'SignatureRequired');
+  }
+}
+
+export class SignatureInvalid extends PublishError {
+  constructor(reason: string) {
+    super(`publish signature invalid: ${reason}`, 'SignatureInvalid');
   }
 }
 
@@ -136,11 +165,32 @@ function findForbiddenImport(source: string): string | null {
 export async function publishClass(
   driver: StorageDriver,
   input: PublishInput,
-): Promise<{ sha256: string }> {
+  options: PublishOptions = {},
+): Promise<{ sha256: string; signedBy?: string }> {
   validatePublish(input);
 
   const sourceBuf =
     typeof input.source === 'string' ? Buffer.from(input.source, 'utf8') : input.source;
+
+  const sha = createHash('sha256').update(sourceBuf).digest('hex');
+
+  // Signing verification before the storage write. An unsigned-but-
+  // required publish or a bad signature fails before we mutate state.
+  let verifiedSignedBy: string | undefined;
+  if (input.signature) {
+    if (!options.signingKeys) {
+      throw new SignatureInvalid('no signing-key registry configured on the server');
+    }
+    const ok = await options.signingKeys.verify({
+      kid: input.signature.kid,
+      signature: input.signature.signature,
+      message: signingMessage(sha, input.name, input.version),
+    });
+    if (!ok.ok) throw new SignatureInvalid(ok.reason);
+    verifiedSignedBy = input.signature.kid;
+  } else if (options.requireSignedClasses) {
+    throw new SignatureRequired();
+  }
 
   const storageInput: PublishClassInput = {
     name: input.name,
@@ -150,26 +200,47 @@ export async function publishClass(
     engines: input.engines ?? {},
     ...(input.floating !== undefined ? { floating: input.floating } : {}),
     ...(input.eventSourced !== undefined ? { eventSourced: input.eventSourced } : {}),
+    ...(input.signature && verifiedSignedBy
+      ? { signature: { signedBy: verifiedSignedBy, signature: input.signature.signature } }
+      : {}),
   };
 
   await driver.publishClass(storageInput);
 
-  const sha = createHash('sha256').update(sourceBuf).digest('hex');
-
-  await driver.appendAudit({
-    id: randomUUID(),
-    ts: Date.now(),
-    principal: input.principal ?? 'system',
-    action: 'class.published',
+  const auditor = options.auditor ?? new Auditor(driver, { mode: 'strict' });
+  await auditor.record({
+    action: AUDIT_ACTIONS.CLASS_PUBLISHED,
     target: `${input.name as string}@${input.version as string}`,
+    principal: input.principal ?? 'system',
     meta: {
       sha256: sha,
       floating: input.floating ?? false,
       eventSourced: input.eventSourced ?? false,
+      ...(verifiedSignedBy ? { signedBy: verifiedSignedBy } : {}),
     },
   });
+  if (verifiedSignedBy) {
+    await auditor.record({
+      action: AUDIT_ACTIONS.CLASS_SIGNED,
+      target: `${input.name as string}@${input.version as string}`,
+      principal: input.principal ?? 'system',
+      meta: { sha256: sha, kid: verifiedSignedBy },
+    });
+  }
 
-  return { sha256: sha };
+  const out: { sha256: string; signedBy?: string } = { sha256: sha };
+  if (verifiedSignedBy) out.signedBy = verifiedSignedBy;
+  return out;
+}
+
+/**
+ * Canonical signing payload: `sha256:<hex>|<name>@<version>`.
+ *
+ * The kid signs this message (not the source bytes directly) so a
+ * verifier can recompute it from the published row's columns.
+ */
+export function signingMessage(sha256Hex: string, name: ClassName, version: Version): Buffer {
+  return Buffer.from(`sha256:${sha256Hex}|${name as string}@${version as string}`, 'utf8');
 }
 
 /* -------------------------------------------- Source syntax check */

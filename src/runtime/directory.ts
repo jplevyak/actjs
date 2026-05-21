@@ -6,6 +6,10 @@
  * consistent-hash placement + cross-node RPC; the public method
  * surface stays the same so call sites don't change.
  */
+import type { Auditor } from '../audit/index.js';
+import { CapacityExhaustedError } from '../limits/errors.js';
+import type { MetricsRegistry } from '../metrics/index.js';
+import type { CapabilityIssuer } from '../policy/capability.js';
 import type { StorageDriver } from '../storage/driver.js';
 import type { ActorRef } from '../types/envelope.js';
 import type { ActorId, ClassName } from '../types/ids.js';
@@ -19,11 +23,17 @@ export class Directory {
   private materializing = new Map<ActorId, Promise<ActorHost>>();
   private destroyed = false;
   private readonly outbound: BridgeOutbound;
+  private readonly perClassActive = new Map<ClassName, number>();
 
   constructor(
     private readonly driver: StorageDriver,
     private readonly classes: Map<ClassName, ActorClassRegistration>,
     private readonly loader: ClassLoader,
+    private readonly capabilityIssuer: CapabilityIssuer | null = null,
+    private readonly auditor?: Auditor,
+    private readonly activeActorCapPerClass: number = 0,
+    private readonly metrics: MetricsRegistry | null = null,
+    private readonly nowMs: (() => number) | null = null,
   ) {
     // Arrow methods capture `this` lexically — no `const dir = this` alias.
     this.outbound = {
@@ -70,6 +80,7 @@ export class Directory {
     if (!registration) {
       throw new Error(`unknown class: ${className as string}`);
     }
+    this.checkActiveCap(className);
     const promise = (async () => {
       const host = new ActorHost({
         registration,
@@ -78,6 +89,10 @@ export class Directory {
         onIdleEvict: (idleId) => this.evict(idleId),
         loader: this.loader,
         outbound: this.outbound,
+        ...(this.capabilityIssuer ? { capabilityIssuer: this.capabilityIssuer } : {}),
+        ...(this.auditor ? { auditor: this.auditor } : {}),
+        ...(this.metrics ? { metrics: this.metrics } : {}),
+        ...(this.nowMs ? { now: this.nowMs } : {}),
       });
       await host.activate();
       return host;
@@ -86,15 +101,47 @@ export class Directory {
     try {
       const host = await promise;
       this.hosts.set(id, host);
+      this.bumpActive(className, +1);
       return host;
     } finally {
       this.materializing.delete(id);
     }
   }
 
+  private checkActiveCap(className: ClassName): void {
+    if (this.activeActorCapPerClass <= 0) return;
+    const current = this.perClassActive.get(className) ?? 0;
+    if (current >= this.activeActorCapPerClass) {
+      throw new CapacityExhaustedError(
+        `class ${className as string} has reached its active-actor cap (${this.activeActorCapPerClass})`,
+        className as string,
+        this.activeActorCapPerClass,
+      );
+    }
+  }
+
+  private bumpActive(className: ClassName, delta: number): void {
+    const next = (this.perClassActive.get(className) ?? 0) + delta;
+    if (next <= 0) this.perClassActive.delete(className);
+    else this.perClassActive.set(className, next);
+    if (this.metrics) {
+      const reg = this.classes.get(className);
+      this.metrics.recordActivation(className as string, (reg?.version ?? '') as string, delta);
+    }
+  }
+
+  /** Active-actor count for a class. Used by metrics + the cap gauge. */
+  activeCount(className: ClassName): number {
+    return this.perClassActive.get(className) ?? 0;
+  }
+
   /** Remove an actor host without deactivating it (deactivate must already have run). */
   evict(id: ActorId): void {
-    this.hosts.delete(id);
+    const host = this.hosts.get(id);
+    if (host) {
+      this.bumpActive(host.className, -1);
+      this.hosts.delete(id);
+    }
   }
 
   /** Currently-alive hosts (for metrics / `actctl actor inspect`). */
@@ -119,6 +166,7 @@ export class Directory {
     await Promise.allSettled(this.materializing.values());
     const hosts = Array.from(this.hosts.values());
     this.hosts.clear();
+    this.perClassActive.clear();
     await Promise.allSettled(hosts.map((h) => h.destroy()));
   }
 }

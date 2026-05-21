@@ -11,6 +11,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { createClient, type RedisClientType } from 'redis';
 
+import { AUDIT_ACTIONS, type Auditor } from '../../audit/index.js';
 import { StatusError } from '../../error.js';
 import GAct, { type RedisLike } from '../../gact.js';
 import { adminOnly } from '../admin.js';
@@ -44,6 +45,7 @@ async function withRedisClient<T>(
 
 export interface LegacyOptions {
   readonly redisUrl?: string;
+  readonly auditor?: Auditor;
 }
 
 export async function registerLegacyRoutes(
@@ -68,6 +70,16 @@ export async function registerLegacyRoutes(
       f = new AsyncFunctionCtor('gact', code);
     } catch (e) {
       throw new StatusError(`unable to compile code: ${errMessage(e)}`, 400);
+    }
+
+    if (options.auditor) {
+      await options.auditor.record({
+        action: AUDIT_ACTIONS.ADMIN_RPC,
+        target: '/run',
+        principal:
+          req.principal ?? (req.headers['x-actjs-admin-id'] as string | undefined) ?? 'admin',
+        meta: { bytes: code.length },
+      });
     }
 
     const result = await withRedisClient(options.redisUrl, async (client) => {

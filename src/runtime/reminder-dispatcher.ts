@@ -24,6 +24,8 @@ export type ReminderSink = (
 export interface ReminderDispatcherOptions {
   readonly tickMs?: number;
   readonly batchLimit?: number;
+  /** Test seam: clock used when querying for due reminders. */
+  readonly nowMs?: () => number;
 }
 
 const DEFAULT_TICK_MS = 100;
@@ -32,6 +34,7 @@ const DEFAULT_BATCH_LIMIT = 100;
 export class ReminderDispatcher {
   private readonly tickMs: number;
   private readonly batchLimit: number;
+  private readonly now: () => number;
   private timer: NodeJS.Timeout | null = null;
   private tickInFlight: Promise<void> | null = null;
   private stopped = false;
@@ -49,6 +52,7 @@ export class ReminderDispatcher {
   ) {
     this.tickMs = options.tickMs ?? DEFAULT_TICK_MS;
     this.batchLimit = options.batchLimit ?? DEFAULT_BATCH_LIMIT;
+    this.now = options.nowMs ?? Date.now;
   }
 
   start(): void {
@@ -87,7 +91,7 @@ export class ReminderDispatcher {
 
   private async tick(): Promise<void> {
     try {
-      for await (const msg of this.driver.popDueReminders(Date.now(), this.batchLimit)) {
+      for await (const msg of this.driver.popDueReminders(this.now(), this.batchLimit)) {
         try {
           await this.sink(msg.className, msg.actorId, msg.type, msg.payload);
           this.delivered++;

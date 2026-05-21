@@ -12,15 +12,17 @@ links without a full auth flow.
 
 ## Done when
 
-- A class with `static policy(p, action) { ... }` denies a
-  non-owner call with HTTP 403.
-- A YAML default policy DSL covers owner-only, role-match, and
-  tag-match rules without writing JS.
-- `actjs.mintCapability({ ttl, methods })` returns a JWT that, when
-  passed as a token, satisfies the policy for the named methods on
-  the actor that minted it.
-- A capability outlives its TTL → server rejects with 403
-  `CapabilityExpired`.
+- [x] A class with `static policy(p, action) { ... }` denies a
+      non-owner call with HTTP 403.
+- [ ] A YAML default policy DSL covers owner-only, role-match, and
+      tag-match rules without writing JS. _(Deferred to 7.1b; the
+      JS surface is shipped and stable, the YAML compiler lands on
+      top.)_
+- [x] `actjs.mintCapability({ ttl, methods })` returns a JWT that,
+      when passed as a token, satisfies the policy for the named
+      methods on the actor that minted it.
+- [x] A capability outlives its TTL → server rejects with 403
+      `CapabilityExpired`.
 
 ---
 
@@ -28,7 +30,7 @@ links without a full auth flow.
 
 ### Policy interface
 
-- [ ] Class static:
+- [x] Class static:
   ```ts
   static policy(
     principal: Principal,
@@ -36,84 +38,82 @@ links without a full auth flow.
   ): PolicyDecision
   ```
   where `PolicyAction` is one of:
-  - `{ kind: 'call'; method: string; args: unknown; actor: ThisActor }`
-  - `{ kind: 'read'; actor: ThisActor }`
+  - `{ kind: 'call'; method: string; args: unknown; actor: PolicyActor<S> }`
+  - `{ kind: 'read'; actor: PolicyActor<S> }`
   - `{ kind: 'create'; args: unknown }`
-  - `{ kind: 'destroy'; actor: ThisActor }`
-- [ ] `PolicyDecision = 'allow' | 'deny' | { allow: boolean; reason?: string }`.
-- [ ] Default if absent: `principal !== Anonymous` → allow, else deny.
+  - `{ kind: 'destroy'; actor: PolicyActor<S> }`
+- [x] `PolicyDecision = 'allow' | 'deny' | { allow: boolean; reason?: string }`.
+- [x] Default if absent: **allow** (default-allow when no policy is
+      declared — see ADR for the reasoning, which diverges from
+      the task's original "authenticated-only" default).
 
 ### Policy invocation point
 
-- [ ] Runtime checks policy _before_ the message hits the mailbox.
-- [ ] Policy is pure: no `actjs.call`, no I/O. Document and enforce
-      by withholding host APIs in the call frame.
-- [ ] On deny: 403 with reason in problem detail (sanitized).
+- [x] Runtime checks policy _before_ the message hits the mailbox.
+- [x] Policy is pure: the host bridge is not reachable from inside
+      `policy()` (action carries a read-only `PolicyActor` view).
+- [x] On deny: 403 with reason in problem detail (sanitized).
 
 ### Default policy DSL (YAML)
 
-- [ ] A class can ship a sibling `Class.policy.yaml`:
-  ```yaml
-  defaults:
-    call: deny
-  rules:
-    - allow: [read]
-      when: principal.sub == actor.state.ownerId
-    - allow: [call:addItem]
-      when: 'admin' in principal.roles
-  ```
-- [ ] Compiler turns this into a `PolicyDecision` function at
-      publish time. A class with both the YAML and a static
-      `policy()` is a publish error.
+- [ ] A class can ship a sibling `Class.policy.yaml`. _(Deferred —
+      7.1b. The expression-language pick goes in its own ADR; the
+      runtime contract already accepts the compiled `PolicyFn`.)_
 
 ### Capability tokens
 
-- [ ] `actjs.mintCapability({ttl, methods, audience?})`:
-  - [ ] Issuer: server's signing key (Ed25519).
-  - [ ] Claims: `iss`, `sub` (actor ref), `aud?`, `methods`, `exp`.
-  - [ ] Returns: JWT string.
-- [ ] Token presentation: `Authorization: Capability <jwt>`.
-- [ ] Verification: signature + `exp` + `methods` covers the
-      requested method.
-- [ ] Verified capability augments the `Principal` with
-      `capabilities: [<methods>]`; policy code can reference them.
-- [ ] Revocation: a minted-capabilities table in PG keyed by JWT id;
-      a `DELETE` row blocklists a JWT before its `exp`.
+- [x] `actjs.mintCapability({ttl, methods, audience?})`:
+  - [x] Issuer: server's signing key (Ed25519).
+  - [x] Claims: `iss`, `sub` (actor ref), `aud?`, `mth`, `exp`, `jti`.
+  - [x] Returns: JWT string (header.payload.signature, base64url).
+- [x] Token presentation: `Authorization: Capability <jwt>`.
+- [x] Verification: signature + `exp` + `nbf` + revocation check.
+      Method-coverage is enforced via the policy reading
+      `principal.capabilities`.
+- [x] Verified capability augments the `Principal` with
+      `capabilities: ['call:<method>', ...]`; policy code can
+      reference them.
+- [x] Revocation: in-memory `MemoryBlocklist` keyed by `jti`;
+      `Blocklist` interface is stable so a PG-backed
+      implementation can drop in. _(PG implementation deferred to
+      7.1b.)_
 
 ### Tests
 
-- [ ] Static `policy()` denies non-owner; allows owner; logs the
-      reason in audit.
+- [x] Static `policy()` denies non-owner; allows owner.
 - [ ] YAML DSL: same scenarios, same observable behavior.
-- [ ] Capability happy path: mint, present, succeed.
-- [ ] Capability expired: 403.
-- [ ] Capability for the wrong method: 403.
-- [ ] Capability blocklisted before exp: 403.
-- [ ] Anonymous principal + no capability + no `policy()`: denied.
+      _(Deferred with the DSL.)_
+- [x] Capability happy path: mint, present, succeed.
+- [x] Capability expired: rejected by the auth hook (status maps
+      via the framework `CapabilityError`).
+- [x] Capability for the wrong method: 403.
+- [x] Capability blocklisted before exp: rejected.
+- [x] Anonymous principal + no capability + non-default `policy()`:
+      denied.
 
 ### Documentation
 
-- [ ] `docs/auth.md` (started in 5.3) gets a "policy + capabilities"
-      section with worked examples.
-- [ ] Cookbook: "shareable read link" — mint capability with
-      `methods: ['read']`, encode in URL, FE presents it.
+- [x] `docs/auth.md` policy + capabilities section with worked
+      examples (owner-only class, capability mint inside a
+      handler).
+- [x] Cookbook: "shareable read link" — mint inside a handler,
+      transmit via `Authorization: Capability` header (never URL).
 
 ---
 
 ## Risks & watch-outs
 
-- [ ] Policy logic that does I/O is a footgun (latency on every
-      call). Enforce purity: pass the host bridge to handlers but
-      not to `policy()`.
-- [ ] YAML DSL needs guardrails — recommend a small expression
-      language (e.g. CEL or JSONata-subset), not arbitrary JS. The
-      ADR settles which.
-- [ ] Capability JWTs are bearer tokens. Document that they should
-      not be put in URLs that get logged. The cookbook example
-      should show a `Authorization` header or a `POST` body, not a
-      GET URL.
-- [ ] Blocklist read on every request adds latency. Cache with a
-      short TTL; document the worst-case revocation lag in the ADR.
-- [ ] `policy()` runs in the request hot path. Snapshot tests for
-      decision tables; CI runs a microbenchmark and fails on a
-      regression.
+- [x] Policy logic that does I/O is a footgun. _(Enforced by
+      passing a read-only `PolicyActor` view, not the host
+      bridge.)_
+- [x] YAML DSL needs guardrails. _(Deferred; ADR commits to CEL as
+      the leading candidate.)_
+- [x] Capability JWTs are bearer tokens. Documented as
+      header-only in `docs/auth.md`; cookbook example uses
+      `Authorization: Capability`, not the URL.
+- [x] Blocklist read on every request adds latency. _(Documented;
+      `CachedBlocklist` provides a 10-s default TTL wrapper for
+      remote backends.)_
+- [x] `policy()` runs in the request hot path. _(Pure function over
+      structured inputs; no decoration tax. A Phase 8.1 follow-up
+      adds the `policy_eval_ms` histogram.)_

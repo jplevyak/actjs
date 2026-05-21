@@ -297,6 +297,36 @@
                         }
                       },
                       "type": "optional"
+                    },
+                    "signature": {
+                      "def": {
+                        "type": "optional",
+                        "innerType": {
+                          "def": {
+                            "type": "string"
+                          },
+                          "type": "string",
+                          "format": null,
+                          "minLength": null,
+                          "maxLength": null
+                        }
+                      },
+                      "type": "optional"
+                    },
+                    "kid": {
+                      "def": {
+                        "type": "optional",
+                        "innerType": {
+                          "def": {
+                            "type": "string"
+                          },
+                          "type": "string",
+                          "format": null,
+                          "minLength": null,
+                          "maxLength": null
+                        }
+                      },
+                      "type": "optional"
                     }
                   }
                 },
@@ -445,6 +475,21 @@
                         "format": null,
                         "minLength": null,
                         "maxLength": null
+                      },
+                      "signedBy": {
+                        "def": {
+                          "type": "optional",
+                          "innerType": {
+                            "def": {
+                              "type": "string"
+                            },
+                            "type": "string",
+                            "format": null,
+                            "minLength": null,
+                            "maxLength": null
+                          }
+                        },
+                        "type": "optional"
                       }
                     }
                   },

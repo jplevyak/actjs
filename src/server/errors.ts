@@ -10,6 +10,8 @@ import type { FastifyError, FastifyReply, FastifyRequest } from 'fastify';
 import { ZodError } from 'zod';
 
 import { StatusError } from '../error.js';
+import { CapacityExhaustedError, RateLimitedError } from '../limits/errors.js';
+import { PolicyDeniedError } from '../policy/index.js';
 import {
   DepConflict,
   ForbiddenImport,
@@ -94,6 +96,22 @@ export function problemDetailFor(err: unknown): ProblemDetail {
   if (err instanceof MailboxFullError) {
     return wrap(err, 429, 'MailboxFull');
   }
+  if (err instanceof RateLimitedError) {
+    return wrap(err, 429, 'RateLimited', {
+      retryAfter: err.retryAfterSeconds,
+      subject: err.subject,
+      operation: err.operation,
+    });
+  }
+  if (err instanceof CapacityExhaustedError) {
+    return wrap(err, 503, 'CapacityExhausted', {
+      class: err.className,
+      cap: err.cap,
+    });
+  }
+  if (err instanceof PolicyDeniedError) {
+    return wrap(err, 403, 'PolicyDenied', { reason: err.reason });
+  }
   if (err instanceof ManifestRegression) {
     return wrap(err, 409, 'ManifestRegression', {
       persistedVersion: err.persistedVersion,
@@ -158,5 +176,9 @@ export async function handleError(
   reply: FastifyReply,
 ): Promise<void> {
   const problem = problemDetailFor(err);
-  await reply.code(problem.status).header('content-type', 'application/problem+json').send(problem);
+  let rep = reply.code(problem.status).header('content-type', 'application/problem+json');
+  if (err instanceof RateLimitedError) {
+    rep = rep.header('Retry-After', String(err.retryAfterSeconds));
+  }
+  await rep.send(problem);
 }

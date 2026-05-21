@@ -7,8 +7,9 @@
  */
 import { z } from 'zod';
 
+import { AUDIT_ACTIONS, Auditor } from '../../audit/index.js';
 import { StatusError } from '../../error.js';
-import { publishClass } from '../../registry/index.js';
+import { publishClass, type SigningKeyVerifier } from '../../registry/index.js';
 import type { StorageDriver } from '../../storage/driver.js';
 import { asClassName, asVersion } from '../../types/index.js';
 import { adminOnly } from '../admin.js';
@@ -29,12 +30,17 @@ const PublishBody = z.object({
   engines: z.record(z.string(), z.string()).default({}),
   floating: z.boolean().optional(),
   eventSourced: z.boolean().optional(),
+  /** Optional Ed25519 signature, base64 of the raw bytes. */
+  signature: z.string().optional(),
+  /** Optional signing key id. Required if `signature` is set. */
+  kid: z.string().optional(),
 });
 
 const PublishResponse = z.object({
   name: z.string(),
   version: z.string(),
   sha256: z.string(),
+  signedBy: z.string().optional(),
 });
 
 const ListResponse = z.object({
@@ -76,7 +82,18 @@ const NotImplementedResponse = z.object({
   detail: z.string(),
 });
 
-export function registerClassRoutes(app: TypedFastifyInstance, driver: StorageDriver): void {
+export interface ClassRoutesOptions {
+  readonly auditor?: Auditor;
+  readonly signingKeys?: SigningKeyVerifier;
+  readonly requireSignedClasses?: boolean;
+}
+
+export function registerClassRoutes(
+  app: TypedFastifyInstance,
+  driver: StorageDriver,
+  options: ClassRoutesOptions = {},
+): void {
+  const auditor = options.auditor ?? new Auditor(driver);
   app.get(
     '/v1/classes',
     {
@@ -112,17 +129,43 @@ export function registerClassRoutes(app: TypedFastifyInstance, driver: StorageDr
     async (req, reply) => {
       const name = asClassName(req.params.name);
       const body = req.body;
-      const { sha256 } = await publishClass(driver, {
+      if ((body.signature !== undefined) !== (body.kid !== undefined)) {
+        throw new StatusError('signature and kid must be provided together', 400);
+      }
+      const publishOpts = {
+        auditor,
+        ...(options.signingKeys ? { signingKeys: options.signingKeys } : {}),
+        ...(options.requireSignedClasses ? { requireSignedClasses: true } : {}),
+      };
+      const result = await publishClass(
+        driver,
+        {
+          name,
+          version: asVersion(body.version),
+          source: body.source,
+          deps: body.deps,
+          engines: body.engines,
+          ...(body.floating !== undefined ? { floating: body.floating } : {}),
+          ...(body.eventSourced !== undefined ? { eventSourced: body.eventSourced } : {}),
+          ...(body.signature && body.kid
+            ? {
+                signature: {
+                  kid: body.kid,
+                  signature: Buffer.from(body.signature, 'base64'),
+                },
+              }
+            : {}),
+          principal: (req.headers['x-actjs-admin-id'] as string | undefined) ?? 'admin',
+        },
+        publishOpts,
+      );
+      const resp: { name: string; version: string; sha256: string; signedBy?: string } = {
         name,
-        version: asVersion(body.version),
-        source: body.source,
-        deps: body.deps,
-        engines: body.engines,
-        ...(body.floating !== undefined ? { floating: body.floating } : {}),
-        ...(body.eventSourced !== undefined ? { eventSourced: body.eventSourced } : {}),
-        principal: (req.headers['x-actjs-admin-id'] as string | undefined) ?? 'admin',
-      });
-      await reply.code(201).send({ name, version: body.version, sha256 });
+        version: body.version,
+        sha256: result.sha256,
+      };
+      if (result.signedBy) resp.signedBy = result.signedBy;
+      await reply.code(201).send(resp);
     },
   );
 
@@ -178,6 +221,13 @@ export function registerClassRoutes(app: TypedFastifyInstance, driver: StorageDr
         throw new StatusError(`invalid semver version in path: ${version}`, 400);
       }
       await driver.deprecateClassVersion(name, asVersion(version), graceUntil);
+      const principal = (req.headers['x-actjs-admin-id'] as string | undefined) ?? 'admin';
+      await auditor.record({
+        action: AUDIT_ACTIONS.CLASS_DEPRECATED,
+        target: `${name as string}@${version}`,
+        principal,
+        meta: graceUntil !== undefined ? { graceUntilMs: graceUntil } : {},
+      });
       return {
         name,
         version,

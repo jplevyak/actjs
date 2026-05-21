@@ -18,40 +18,40 @@
  * Built-in helpers (verifyJWT / verifyHmac / staticToken) live next
  * to the hook so they ship with the framework but stay opt-in.
  */
-import { createHmac, createPublicKey, timingSafeEqual, verify as nodeVerify } from 'node:crypto';
+import {
+  createHmac,
+  createPublicKey,
+  timingSafeEqual,
+  verify as nodeVerify,
+  type KeyObject,
+} from 'node:crypto';
 
 import type { FastifyReply, FastifyRequest, preHandlerAsyncHookHandler } from 'fastify';
 
 import { StatusError } from '../error.js';
+import type { Blocklist } from '../policy/blocklist.js';
+import {
+  parseCapabilityHeader,
+  verifyCapability,
+  type VerifiedCapability,
+} from '../policy/capability.js';
+import {
+  ANONYMOUS_SUB,
+  anonymousPrincipal,
+  hasCapability,
+  hasRole,
+  isAnonymous,
+  type Principal,
+} from '../types/principal.js';
 
 /* ---------------------------------------------------- Principal type */
 
-export interface Principal {
-  /** Stable subject identifier (e.g. user id, service name). */
-  readonly sub: string;
-  /** Role names; admin routes check for `'admin'` here. */
-  readonly roles?: readonly string[];
-  /** Tenant / org scope, when the deployment is multi-tenant. */
-  readonly tenant?: string;
-  /** Capability tokens (Phase 7b). */
-  readonly capabilities?: readonly string[];
-  /** Free-form claims forwarded from the verifier; opaque to actjs. */
-  readonly claims?: Readonly<Record<string, unknown>>;
-}
-
-export const ANONYMOUS_SUB = 'anonymous';
-
-export function anonymousPrincipal(): Principal {
-  return { sub: ANONYMOUS_SUB, roles: [] };
-}
-
-export function isAnonymous(p: Principal): boolean {
-  return p.sub === ANONYMOUS_SUB;
-}
-
-export function hasRole(p: Principal | undefined, role: string): boolean {
-  return p?.roles?.includes(role) ?? false;
-}
+/* Re-exports from `src/types/principal.ts` — the Principal type
+ * lives there so the runtime can consume it without pulling in
+ * Fastify. Existing imports of these symbols from `server/auth.js`
+ * still resolve.
+ */
+export { ANONYMOUS_SUB, anonymousPrincipal, hasCapability, hasRole, isAnonymous, type Principal };
 
 /* ---------------------------------------------------- Fastify wiring */
 
@@ -64,16 +64,49 @@ declare module 'fastify' {
 
 export type AuthHook = (req: FastifyRequest) => Promise<Principal | null> | Principal | null;
 
+export interface CapabilityAuthOptions {
+  /** Public Ed25519 key matching the issuer used by `actjs.mintCapability`. */
+  readonly publicKey: KeyObject;
+  /** Optional blocklist for revoked tokens. */
+  readonly blocklist?: Blocklist;
+}
+
 export interface AuthHookOptions {
   readonly auth?: AuthHook;
   /** If true and `auth` returns null, respond 401. */
   readonly requireAuth?: boolean;
+  /** Capability-token verifier; when set, the hook also handles `Authorization: Capability …`. */
+  readonly capability?: CapabilityAuthOptions;
+}
+
+declare module 'fastify' {
+  interface FastifyRequest {
+    /** Decoded capability claims when the request presented one. */
+    capability?: VerifiedCapability;
+  }
 }
 
 export function makeAuthHook(options: AuthHookOptions): preHandlerAsyncHookHandler {
-  const { auth, requireAuth } = options;
+  const { auth, requireAuth, capability } = options;
 
   return async function authHook(req: FastifyRequest, _reply: FastifyReply): Promise<void> {
+    // Capability tokens take precedence: they're issued for narrow
+    // grants and shouldn't accidentally compose with whatever Bearer
+    // token an attacker also presents.
+    if (capability) {
+      const capToken = parseCapabilityHeader(req.headers['authorization']);
+      if (capToken !== null) {
+        const verified = verifyCapability(capToken, capability.publicKey, {
+          ...(capability.blocklist
+            ? { isRevoked: (jti) => capability.blocklist!.isRevoked(jti) }
+            : {}),
+        });
+        req.capability = verified;
+        req.principal = capabilityPrincipal(verified);
+        return;
+      }
+    }
+
     if (!auth) {
       req.principal = anonymousPrincipal();
       return;
@@ -92,6 +125,26 @@ export function makeAuthHook(options: AuthHookOptions): preHandlerAsyncHookHandl
       return;
     }
     req.principal = principal;
+  };
+}
+
+/**
+ * Turn a verified capability into a Principal. The principal's
+ * `sub` is the actor reference; `capabilities` lists the methods
+ * the grant covers (so a class's `policy()` can reference them).
+ */
+function capabilityPrincipal(verified: VerifiedCapability): Principal {
+  const claims = verified.claims;
+  return {
+    sub: `cap:${claims.sub}`,
+    roles: [],
+    capabilities: claims.mth.map((m) => (m.startsWith('call:') ? m : `call:${m}`)),
+    claims: {
+      iss: claims.iss,
+      jti: claims.jti,
+      exp: claims.exp,
+      ...(claims.aud ? { aud: claims.aud } : {}),
+    },
   };
 }
 

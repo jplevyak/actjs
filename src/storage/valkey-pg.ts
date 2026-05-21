@@ -99,7 +99,7 @@ export class ValkeyPgStorageDriver implements StorageDriver {
   async __resetForTests(): Promise<void> {
     await this.pool.query(
       `TRUNCATE actor, actor_snapshot, actor_event, class_version, class_blob,
-                manifest, audit, _migrations RESTART IDENTITY CASCADE`,
+                manifest, audit, signing_key, _migrations RESTART IDENTITY CASCADE`,
     );
     await this.redis.flushDb();
   }

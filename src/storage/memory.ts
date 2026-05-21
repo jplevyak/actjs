@@ -275,6 +275,18 @@ export class MemoryStorageDriver implements StorageDriver {
     this.reminders.push({ when, msg, seq: this.reminderSeq++ });
   }
 
+  /**
+   * Test-only: snapshot of currently-pending reminders (not yet popped),
+   * ordered by their scheduled time. Used by `@actjs/test` to assert
+   * `toHaveScheduled(...)`.
+   */
+  peekReminders(): readonly { when: number; msg: ReminderMsg }[] {
+    return this.reminders
+      .slice()
+      .sort((a, b) => a.when - b.when || a.seq - b.seq)
+      .map(({ when, msg }) => ({ when, msg }));
+  }
+
   popDueReminders(now: number, limit: number): AsyncIterable<ReminderMsg> {
     this.reminders.sort((a, b) => a.when - b.when || a.seq - b.seq);
     const due: ReminderMsg[] = [];

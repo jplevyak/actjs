@@ -74,6 +74,159 @@ Authoring an admin role is your decision: actjs only checks for
 the string `'admin'`. Map your IdP groups / scopes to it however
 you like.
 
+## Policy + capabilities (Phase 7.1)
+
+Auth says **who**. Policy says **what they can do**. Capabilities
+let a class hand out narrow, time-bounded grants without minting a
+full identity.
+
+### Class `static policy()`
+
+Any actor class can declare a `static policy()` method:
+
+```ts
+class OwnedNote extends actjs.Actor<{ ownerId: string; text: string }> {
+  static policy(p: Principal, action: PolicyAction<OwnedNote>) {
+    if (action.kind === 'create') return 'allow';
+    if (action.kind === 'read' || action.kind === 'destroy') {
+      return p.sub === action.actor.state.ownerId
+        ? 'allow'
+        : { allow: false, reason: 'only the owner can read or destroy' };
+    }
+    if (action.method === 'write') {
+      return p.sub === action.actor.state.ownerId ? 'allow' : 'deny';
+    }
+    return 'deny';
+  }
+  /* ...handlers... */
+}
+```
+
+Semantics:
+
+- The runtime runs `policy()` **before** the message reaches the
+  mailbox. A denied call never wakes the actor.
+- `policy()` is **pure**: no `actjs.call`, no I/O. The runtime
+  passes the action's `actor` as a read-only view; the host bridge
+  isn't reachable from inside `policy()`.
+- Decisions can be the literals `'allow'` / `'deny'` or an object
+  `{ allow: boolean; reason?: string }`. The `reason` surfaces in
+  the 403 problem-detail body so the caller knows _why_.
+- If no `static policy()` is declared, the framework default is
+  **allow** — trust your own classes. Opt into gating per class.
+
+### Action kinds
+
+| Kind      | Fields                                                             |
+| --------- | ------------------------------------------------------------------ |
+| `call`    | `{ method, args, actor: { ref, state } }`                          |
+| `read`    | `{ actor: { ref, state } }` — fires on `GET /v1/actors/:c/:id`.    |
+| `create`  | `{ args }` — fires on `POST /v1/actors/:c`.                        |
+| `destroy` | `{ actor: { ref, state } }` — fires on `DELETE /v1/actors/:c/:id`. |
+
+The `actor.state` field is the current materialized state. Use it
+to compare against the principal (`ownerId === p.sub`), check
+tenant scoping, or gate by tag.
+
+### Worked example: shareable read links
+
+Mint a capability inside a handler:
+
+```ts
+class Cart extends actjs.Actor<{ items: Item[]; ownerId: string }> {
+  @handler('shareReadLink')
+  shareReadLink(args: { ttlMinutes: number }): { token: string } {
+    return {
+      token: this.actjs.mintCapability({
+        methods: ['call:total', 'call:listItems'],
+        ttlMs: args.ttlMinutes * 60_000,
+      }),
+    };
+  }
+
+  @handler('total')
+  total(): number {
+    /* ... */
+  }
+
+  static policy(p: Principal, action: PolicyAction<Cart>) {
+    if (action.kind !== 'call') return 'allow';
+    if (action.method === 'shareReadLink') {
+      return p.sub === action.actor.state.ownerId ? 'allow' : 'deny';
+    }
+    if (action.method === 'total' || action.method === 'listItems') {
+      // Owner, OR a capability that includes call:<method>.
+      if (p.sub === action.actor.state.ownerId) return 'allow';
+      if (p.capabilities?.includes(`call:${action.method}`)) return 'allow';
+      return 'deny';
+    }
+    return 'deny';
+  }
+}
+```
+
+A holder presents the token via `Authorization: Capability <jwt>`:
+
+```bash
+curl -X POST \
+  -H "Authorization: Capability $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{}' \
+  https://api.example.com/v1/actors/Cart/$id/total
+```
+
+Important: **do not put the token in a URL query string.** URLs land
+in logs, Referer headers, browser histories, and CDN caches. Either
+keep the token in the header on every call, or post it via a
+`POST` body and have your frontend exchange it for a session
+cookie.
+
+### Capability claims
+
+| Claim  | Meaning                                                             |
+| ------ | ------------------------------------------------------------------- |
+| `iss`  | Issuer string (set on `new Runtime({ capabilityIssuer })`).         |
+| `sub`  | `"<class>:<id>"` — bound to the actor that minted it.               |
+| `aud?` | Optional audience (free-form, opaque to the framework).             |
+| `mth`  | Methods this grant covers; e.g. `["call:total", "call:listItems"]`. |
+| `exp`  | Unix-second expiry; enforced on every verification.                 |
+| `jti`  | UUID; used by the blocklist for revocation.                         |
+
+Signing algorithm: **Ed25519** (`alg: 'EdDSA'`). The issuer
+generates a fresh keypair at construction time unless you pass an
+existing `KeyObject` via `new CapabilityIssuer({ privateKey, publicKey })`.
+
+### Revocation
+
+Capabilities can outlive their usefulness. Pass a blocklist to
+`buildApp`:
+
+```ts
+import { MemoryBlocklist } from 'actjs/policy';
+
+const blocklist = new MemoryBlocklist();
+const app = await buildApp({ /* ... */, capabilityBlocklist: blocklist });
+
+// Later:
+blocklist.revoke(jti, expiresAtMs);
+```
+
+The blocklist is checked on every request that presents a
+capability. The in-memory backend is single-node; multi-node
+deployments should provide a `Blocklist` implementation backed by
+Postgres or Redis (7.1b — the interface is stable).
+
+Wrapping a remote blocklist in `CachedBlocklist` adds a per-jti
+TTL (default 10 s) so the hot path doesn't take a round-trip on
+every call. The documented worst-case revocation lag equals the
+cache TTL.
+
+### Operator checklist for capabilities
+
+- **Issuer key persistence.** The default `new Runtime({ capabilityIssuer: new CapabilityIssuer({ issuer: 'my-app' }) })` generates a fresh keypair each process start, which invalidates every previously-minted token. For production, persist the private key (e.g. read from `KMS`) and pass it in.
+- **TTL bounds.** The issuer enforces a max TTL of 24h by default. Lower it (`new CapabilityIssuer({ maxTtlMs })`) if your threat model needs shorter grants.
+- **Audit.** Phase 7.2 will log each verified capability with `iss`/`jti`/`sub`/`mth` — the data is already on `req.capability` if you want to roll your own audit hook today.
+
 ## Built-in verifiers
 
 These exist so most users don't have to write `auth(req)` from

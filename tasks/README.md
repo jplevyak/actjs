@@ -5,6 +5,7 @@ named `phase-N[-K]-<slug>.md`, where `K` only appears when a single
 PLAN.md phase is split into multiple session-sized tasks.
 
 Source of truth for goals & ordering: [`../PLAN.md`](../PLAN.md).
+Post-8.2 follow-ups + suggested order: [`./ROADMAP.md`](./ROADMAP.md).
 
 ## Index
 

@@ -93,6 +93,12 @@ export interface ActorHostOptions {
   readonly outbound?: BridgeOutbound;
   /** Optional bridge logger. Default silent. */
   readonly log?: BridgeLogger;
+  /** Capability issuer the bridge's `mintCapability` should use. */
+  readonly capabilityIssuer?: import('../policy/capability.js').CapabilityIssuer;
+  /** Auditor used by privileged lifecycle events (migration). */
+  readonly auditor?: import('../audit/index.js').Auditor;
+  /** Metrics registry; the host bumps event/snapshot counters. */
+  readonly metrics?: import('../metrics/index.js').MetricsRegistry;
 }
 
 /* ------------------------------------------------------- Mailbox items */
@@ -205,6 +211,9 @@ export class ActorHost {
   private readonly loader: ClassLoader | null;
   private readonly outbound: BridgeOutbound | null;
   private readonly bridgeLog: BridgeLogger;
+  private readonly capabilityIssuer: import('../policy/capability.js').CapabilityIssuer | null;
+  private readonly auditor: import('../audit/index.js').Auditor | null;
+  private readonly promMetrics: import('../metrics/index.js').MetricsRegistry | null;
   /** The class version the activated instance is actually running. */
   private runningVersion: Version;
   /** sha256 of the running class source; used to release the loader refcount. */
@@ -232,6 +241,9 @@ export class ActorHost {
     this.loader = options.loader ?? null;
     this.outbound = options.outbound ?? null;
     this.bridgeLog = options.log ?? SILENT_LOGGER;
+    this.capabilityIssuer = options.capabilityIssuer ?? null;
+    this.auditor = options.auditor ?? null;
+    this.promMetrics = options.metrics ?? null;
     // Default; resolveCtor() may overwrite this for sticky activations.
     this.runningVersion = this.version;
   }
@@ -276,6 +288,9 @@ export class ActorHost {
       ...(this.outbound ? { outbound: this.outbound } : {}),
       log: this.bridgeLog,
       now: this.now,
+      ...(this.capabilityIssuer ? { capabilityIssuer: this.capabilityIssuer } : {}),
+      ...(this.auditor ? { auditor: this.auditor } : {}),
+      ...(this.promMetrics ? { metrics: this.promMetrics } : {}),
     });
 
     let prevSnap: { state: unknown; version: Version } | null = null;
@@ -449,6 +464,19 @@ export class ActorHost {
     this.metrics.migrationsApplied++;
     this.snapshotDirty = true;
     await this.flushSnapshot();
+    if (this.auditor) {
+      await this.auditor.record({
+        action: 'actor.migrated',
+        target: `${this.className as string}:${this.id as string}`,
+        principal: 'system',
+        meta: {
+          actorId: this.id as string,
+          class: this.className as string,
+          fromVersion: prevVersion as string,
+          toVersion: this.runningVersion as string,
+        },
+      });
+    }
   }
 
   /* ------------------------------------------------------- Deactivation */
@@ -636,6 +664,11 @@ export class ActorHost {
     es.state = state;
     this.currentSeq = append.seq;
     this.metrics.eventsAppended += BigInt(events.length);
+    if (this.promMetrics) {
+      for (let i = 0; i < events.length; i++) {
+        this.promMetrics.recordEventAppend(this.className as string);
+      }
+    }
     this.eventsSinceSnapshot += events.length;
     // ANY append leaves state ahead of the last persisted snapshot.
     // Marking dirty here guarantees the deactivate flush captures the
@@ -741,6 +774,7 @@ export class ActorHost {
       state: this.instance.snapshot(),
     });
     this.metrics.snapshotsWritten++;
+    this.promMetrics?.recordSnapshot(this.className as string);
     if (this.isEs) this.eventsSinceSnapshot = 0;
   }
 

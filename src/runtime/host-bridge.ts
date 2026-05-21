@@ -10,6 +10,9 @@
  * `class-kit.ts`). The two intentionally share a name; their
  * methods don't overlap so there's no ambiguity at the call site.
  */
+import { AUDIT_ACTIONS, type Auditor } from '../audit/index.js';
+import type { MetricsRegistry } from '../metrics/index.js';
+import type { CapabilityIssuer, CapabilityMintInput } from '../policy/capability.js';
 import type { ActorRef } from '../types/envelope.js';
 import type { ActorId, ClassName } from '../types/ids.js';
 
@@ -61,6 +64,15 @@ export class ActorAbort extends Error {
 
 /* --------------------------------------------------- Public surface */
 
+export interface MintCapabilityArgs {
+  /** Methods the capability grants on the minting actor. */
+  readonly methods: readonly string[];
+  /** Lifetime in milliseconds. */
+  readonly ttlMs: number;
+  /** Optional audience scope. */
+  readonly audience?: string;
+}
+
 export interface ActjsHost {
   readonly self: ActorRef;
   call<R = unknown>(ref: ActorRef, method: string, args: unknown): Promise<R>;
@@ -69,6 +81,12 @@ export interface ActjsHost {
   now(): number;
   readonly log: BridgeLogger;
   abort(reason: string): never;
+  /**
+   * Mint a capability token bound to *this* actor. Returns the
+   * encoded JWT (or throws `Error` if no issuer is wired into the
+   * runtime).
+   */
+  mintCapability(args: MintCapabilityArgs): string;
 }
 
 export interface BridgeOptions {
@@ -76,6 +94,12 @@ export interface BridgeOptions {
   readonly outbound?: BridgeOutbound;
   readonly log?: BridgeLogger;
   readonly now?: () => number;
+  /** Issuer used by `actjs.mintCapability`. Omit to disable. */
+  readonly capabilityIssuer?: CapabilityIssuer;
+  /** Auditor used to record `capability.minted`. Omit to disable audit. */
+  readonly auditor?: Auditor;
+  /** Metrics registry; the bridge bumps `capability_minted_total`. */
+  readonly metrics?: MetricsRegistry;
 }
 
 /* ---------------------------------------------------------- Impl */
@@ -84,6 +108,9 @@ export function makeBridge(options: BridgeOptions): ActjsHost {
   const log = options.log ?? SILENT_LOGGER;
   const now = options.now ?? (() => Date.now());
   const outbound = options.outbound ?? noOutbound();
+  const issuer = options.capabilityIssuer;
+  const auditor = options.auditor;
+  const metrics = options.metrics;
   return {
     self: options.self,
     async call<R = unknown>(ref: ActorRef, method: string, args: unknown): Promise<R> {
@@ -100,6 +127,41 @@ export function makeBridge(options: BridgeOptions): ActjsHost {
     log,
     abort(reason: string): never {
       throw new ActorAbort(reason);
+    },
+    mintCapability(args: MintCapabilityArgs): string {
+      if (!issuer) {
+        throw new Error(
+          'actjs.mintCapability: no CapabilityIssuer is wired into this Runtime. ' +
+            'Pass `capabilityIssuer` to `new Runtime(...)`.',
+        );
+      }
+      const input: CapabilityMintInput = {
+        actor: { class: options.self.class as string, id: options.self.id as string },
+        methods: args.methods,
+        ttlMs: args.ttlMs,
+        ...(args.audience ? { audience: args.audience } : {}),
+      };
+      const token = issuer.mint(input);
+      metrics?.recordCapabilityMint(options.self.class as string);
+      if (auditor) {
+        void auditor
+          .record({
+            action: AUDIT_ACTIONS.CAPABILITY_MINTED,
+            target: `${options.self.class as string}:${options.self.id as string}`,
+            principal: 'system',
+            meta: {
+              methods: [...args.methods],
+              ttlMs: args.ttlMs,
+              ...(args.audience ? { audience: args.audience } : {}),
+            },
+          })
+          .catch((err: unknown) => {
+            log.warn?.('capability mint audit failed', {
+              err: err instanceof Error ? err.message : String(err),
+            });
+          });
+      }
+      return token;
     },
   };
 }
