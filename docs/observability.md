@@ -19,8 +19,8 @@ alert rule set are deferred to Phase 8.1b (see the ADR).
 ## Logs
 
 ```ts
-import { makeLogger } from 'actjs/log';
-import { buildApp } from 'actjs/server';
+import { makeLogger } from '@jplevyak/actjs/log';
+import { buildApp } from '@jplevyak/actjs/server';
 
 const log = makeLogger({ level: 'info' });
 const app = await buildApp({ driver, runtime, log });
@@ -66,7 +66,7 @@ The harness builds a noop logger by default (`NODE_ENV=test` or
 `makeCollectingLogger` from `actjs/log`:
 
 ```ts
-import { makeCollectingLogger } from 'actjs/log';
+import { makeCollectingLogger } from '@jplevyak/actjs/log';
 
 const events: CollectedEvent[] = [];
 const log = makeCollectingLogger(events);
@@ -78,8 +78,8 @@ const app = await buildApp({ ...rest, log });
 ## Metrics
 
 ```ts
-import { MetricsRegistry } from 'actjs/metrics';
-import { ManifestUsageTracker } from 'actjs/server';
+import { MetricsRegistry } from '@jplevyak/actjs/metrics';
+import { ManifestUsageTracker } from '@jplevyak/actjs/server';
 
 const metrics = new MetricsRegistry();
 const runtime = new Runtime(driver, { metrics });

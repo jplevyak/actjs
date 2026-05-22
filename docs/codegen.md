@@ -180,7 +180,7 @@ task surfaces in the same PR that changed a handler signature.
 ## Programmatic use
 
 ```ts
-import { run, localLoader } from 'actjs/codegen';
+import { run, localLoader } from '@jplevyak/actjs/codegen';
 
 const result = await run({
   source: localLoader({ dir: './classes' }),
@@ -198,4 +198,4 @@ if (result.status === 'check-drift') {
 - [Phase 6.1 task](../tasks/phase-6-1-codegen.md)
 - [Phase 6.1 ADR](../tasks/phase-6-1-codegen.adr.md)
 - [Phase 4.3 — client manifest pin](../tasks/phase-4-3-client-manifest-pin.md)
-- [Phase 6.2 — @actjs/client](../tasks/phase-6-2-sdk-client.md)
+- [Phase 6.2 — @jplevyak/actjs/client](../tasks/phase-6-2-sdk-client.md)

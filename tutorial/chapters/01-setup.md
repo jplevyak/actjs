@@ -80,7 +80,7 @@ That writes a default `package.json`. Edit it to look like this:
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "actjs": "^0.3.0",
+    "@jplevyak/actjs": "^0.3.0",
     "fastify": "^5.0.0"
   },
   "devDependencies": {
@@ -99,9 +99,9 @@ A few specifics worth noting:
 - **`tsx watch`** — runs TypeScript directly without precompiling,
   and restarts the server when files change. This is our entire
   dev loop. No webpack, no esbuild config.
-- **`actjs` + `fastify` as dependencies** — actjs uses Fastify as
-  its HTTP layer; you'll see why in a few lines. The version
-  range pins to whatever shipped with the tutorial.
+- **`@jplevyak/actjs` + `fastify` as dependencies** — actjs uses
+  Fastify as its HTTP layer; you'll see why in a few lines. The
+  version range pins to whatever shipped with the tutorial.
 
 Install:
 
@@ -152,9 +152,9 @@ The bits that matter:
 This is the whole server. Create `src/server.ts` and paste:
 
 ```ts
-import { Runtime } from 'actjs/runtime';
-import { buildApp } from 'actjs/server';
-import { MemoryStorageDriver } from 'actjs/storage';
+import { Runtime } from '@jplevyak/actjs/runtime';
+import { buildApp } from '@jplevyak/actjs/server';
+import { MemoryStorageDriver } from '@jplevyak/actjs/storage';
 
 // 1) The storage driver owns durable state. The memory driver
 //    is enough through chapter 17; chapter 18 swaps in the
@@ -327,10 +327,11 @@ arrives in chapters 03 and 04.
 
 **`Cannot find module 'actjs/server'`**
 
-You probably have an older `actjs` installed where `./server`
-isn't in the exports map. Run `pnpm install actjs@latest` and
-try again. (This export was added in the 8.2 release — the
-server entry was always there, just not surfaced.)
+You probably have an older `@jplevyak/actjs` installed where
+`./server` isn't in the exports map. Run
+`pnpm install @jplevyak/actjs@latest` and try again. (This
+export was added in the 8.2 release — the server entry was
+always there, just not surfaced.)
 
 **`SyntaxError: Cannot use import statement outside a module`**
 

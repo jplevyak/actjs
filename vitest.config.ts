@@ -8,14 +8,14 @@ export default defineConfig({
       provider: 'v8',
       include: ['src/**/*.ts'],
       // Exclusions: files that require live infra to exercise.
-      //   - top.ts: HTTP boundary, exercised by ./demo.bash integration.
+      //   - cli/start.ts: HTTP boundary, exercised by ./demo.bash integration.
       //     Replaced by Fastify routes with real unit tests in Phase 5.
       //   - valkey-pg.ts / migrate.ts: require live PG + Valkey.
       //     Exercised by the conformance suite in CI's storage job.
       exclude: [
         'src/scratch.ts',
         'src/main.ts',
-        'src/top.ts',
+        'src/cli/start.ts',
         'src/storage/valkey-pg.ts',
         'src/storage/migrate.ts',
         '**/*.test.ts',

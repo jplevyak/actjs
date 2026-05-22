@@ -1,13 +1,13 @@
-# Testing actor classes with `@actjs/test`
+# Testing actor classes with `@jplevyak/actjs/test`
 
-`@actjs/test` is the in-process test harness that lets you exercise
+`@jplevyak/actjs/test` is the in-process test harness that lets you exercise
 an actor class against a memory-backed runtime — no Postgres, no
 Valkey, no HTTP server. It's the same `Runtime` + `MemoryStorageDriver`
 that the unit tests in this repo use, wrapped in a developer-
 friendly facade.
 
 ```ts
-import { TestRuntime, assertSnapshot } from 'actjs/test';
+import { TestRuntime, assertSnapshot } from '@jplevyak/actjs/test';
 
 const t = await TestRuntime.create({ classes: { Counter } });
 const counter = t.actor(Counter);
@@ -40,7 +40,12 @@ await t.close();
 Framework-agnostic helpers (vitest, jest, node:test all work):
 
 ```ts
-import { assertSnapshot, assertEmitted, assertScheduled, assertNotMaterialized } from 'actjs/test';
+import {
+  assertSnapshot,
+  assertEmitted,
+  assertScheduled,
+  assertNotMaterialized,
+} from '@jplevyak/actjs/test';
 
 // SWM: assert the current state shape.
 await assertSnapshot(counter, { n: 5 });
@@ -97,7 +102,7 @@ iterations to catch runaway schedules in test code).
 ## Migration replay
 
 ```ts
-import { replayMigrations } from 'actjs/test';
+import { replayMigrations } from '@jplevyak/actjs/test';
 
 const report = await replayMigrations({
   ctor: Note,

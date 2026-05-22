@@ -1,13 +1,25 @@
+#!/usr/bin/env node
 /**
- * actjs server entry.
+ * `actjs-server` — reference HTTP server entry.
  *
  * Builds the Fastify app via {@link buildApp} and binds to `PORT`.
  * When `DATABASE_URL` (or `POSTGRES_URL`) is unset, the server still
- * boots — only the legacy /run + /upload paths are then useful.
+ * boots against the in-memory driver — only the legacy /run + /upload
+ * paths and any built-in routes are then useful, since no actor
+ * classes are registered.
+ *
+ * Most consumers will write their own bootstrap that registers
+ * actor classes via `runtime.register({...})` before calling
+ * `app.listen`. This entry serves as a working reference + a
+ * runnable demo of the legacy GAct surface.
  */
-import { Runtime } from './runtime/index.js';
-import { buildApp } from './server/app.js';
-import { MemoryStorageDriver, ValkeyPgStorageDriver, type StorageDriver } from './storage/index.js';
+import { Runtime } from '../runtime/index.js';
+import { buildApp } from '../server/app.js';
+import {
+  MemoryStorageDriver,
+  ValkeyPgStorageDriver,
+  type StorageDriver,
+} from '../storage/index.js';
 
 const PORT = Number(process.argv[2] ?? process.env['PORT'] ?? 3000);
 const REDIS_URL = process.env['REDIS_URL'];

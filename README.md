@@ -15,8 +15,8 @@ end-to-end.
   sourcing per class.
 - **Wire protocol.** URL-versioned REST + JSON-RPC 2.0 over WebSocket;
   SSE fallback.
-- **Frontend story.** Typed `@actjs/client` plus `@actjs/react` and
-  `@actjs/svelte` bindings; `actctl codegen` emits a `.d.ts` bundle and
+- **Frontend story.** Typed `@jplevyak/actjs/client` plus `@jplevyak/actjs/bindings/react` and
+  `@jplevyak/actjs/bindings/svelte` bindings; `actctl codegen` emits a `.d.ts` bundle and
   a `manifest.json` per build so calling a non-existent method is a
   compile error.
 - **Storage.** Valkey (hot path, mailboxes, locks) + Postgres (system of
@@ -85,8 +85,8 @@ actctl codegen --out ./client-types
 Use it from a React app:
 
 ```tsx
-import { Client } from '@actjs/client';
-import { useActor, useActorValue } from '@actjs/react';
+import { Client } from '@jplevyak/actjs/client';
+import { useActor, useActorValue } from '@jplevyak/actjs/bindings/react';
 import type { Cart } from './client-types';
 
 const client = new Client({ url: '/api', token });
@@ -110,7 +110,7 @@ function CartView({ id }: { id: string }) {
 ### SWM (single-writer mailbox)
 
 ```ts
-import { Actor, handler } from 'actjs';
+import { Actor, handler } from '@jplevyak/actjs';
 
 interface CartState {
   items: Array<{ sku: string; qty: number }>;
@@ -149,7 +149,7 @@ Inside a handler you have access to a per-instance `this.actjs` bridge:
 ### ES (event-sourced)
 
 ```ts
-import { EventSourced, handler } from 'actjs';
+import { EventSourced, handler } from '@jplevyak/actjs';
 
 interface LedgerState {
   balance: number;
@@ -336,7 +336,7 @@ boot. The resolved principal is bound on `req.principal` and threaded
 into the class `policy()` static.
 
 ```ts
-import { buildApp } from 'actjs/server';
+import { buildApp } from '@jplevyak/actjs/server';
 
 const app = await buildApp({
   driver,
@@ -352,10 +352,10 @@ operator-chosen. The runtime only sees the resulting `Principal`.
 
 ## Frontend SDK
 
-### `@actjs/client`
+### `@jplevyak/actjs/client`
 
 ```ts
-import { Client } from '@actjs/client';
+import { Client } from '@jplevyak/actjs/client';
 import type { Cart } from './client-types';
 
 const client = new Client({ url: '/api', token });
@@ -379,7 +379,7 @@ draft.items.push(x))` applies locally via Immer, sends the call,
   reducer client-side; the local state is byte-identical to the
   server's by construction.
 
-### `@actjs/react`
+### `@jplevyak/actjs/bindings/react`
 
 ```tsx
 const cart = useActor<Cart>('Cart', id); // Suspense for initial load
@@ -387,14 +387,14 @@ const total = useActorValue<Cart, number>('Cart', id, (c) => c.total);
 ```
 
 Built on `useSyncExternalStore` for updates, `Suspense` for cold load,
-`useTransition` for optimistic. `@actjs/react/server` exports
+`useTransition` for optimistic. `@jplevyak/actjs/bindings/react/server` exports
 `fetchActor(class, id, { manifest })` for RSC hydration.
 
-### `@actjs/svelte`
+### `@jplevyak/actjs/bindings/svelte`
 
 ```svelte
 <script lang="ts">
-  import { actor } from '@actjs/svelte';
+  import { actor } from '@jplevyak/actjs/bindings/svelte';
   import type { Cart } from './client-types';
   const cart = actor<Cart>('Cart', id);
 </script>
@@ -437,9 +437,9 @@ roadmapped to 8.2b — see [tasks/ROADMAP.md](./tasks/ROADMAP.md) Tier 3.
 For tests and embedded deployments, talk to the `Runtime` directly:
 
 ```ts
-import { Runtime } from 'actjs/runtime';
-import { MemoryStorageDriver } from 'actjs/storage';
-import { asClassName, asVersion, mkActorId } from 'actjs/types';
+import { Runtime } from '@jplevyak/actjs/runtime';
+import { MemoryStorageDriver } from '@jplevyak/actjs/storage';
+import { asClassName, asVersion, mkActorId } from '@jplevyak/actjs/types';
 
 const driver = new MemoryStorageDriver();
 await driver.init();
@@ -462,13 +462,13 @@ await driver.close();
 - `ValkeyPgStorageDriver` is the production driver (Valkey for hot
   state, PG for the durable record).
 
-`@actjs/test` (`actjs/test` export) wraps this with a `TestRuntime`
+`@jplevyak/actjs/test` (`actjs/test` export) wraps this with a `TestRuntime`
 that mints actors via `t.actor(Ctor)`, drives time deterministically
 via `t.advanceTime(ms)` (fires due reminders), and ships
 framework-agnostic assertions:
 
 ```ts
-import { TestRuntime, assertSnapshot, assertEmitted } from 'actjs/test';
+import { TestRuntime, assertSnapshot, assertEmitted } from '@jplevyak/actjs/test';
 
 const t = await TestRuntime.create({ classes: { Cart } });
 const cart = t.actor(Cart);
@@ -557,35 +557,35 @@ production.
 
 ## Files
 
-| Path                                  | Purpose                                                                                  |
-| ------------------------------------- | ---------------------------------------------------------------------------------------- |
-| `src/actor.ts`                        | `Actor<S>` base class (SWM)                                                              |
-| `src/event-sourced.ts`                | `EventSourced<S, E>` base class                                                          |
-| `src/replica.ts`                      | `Replica<S>` opt-out-of-persistence base class                                           |
-| `src/handler.ts`                      | `@handler` decorator + `getHandlers`                                                     |
-| `src/types/`                          | `ActorId`, `ClassName`, `Version`, `Manifest`, `Envelope<T>`, `Principal`                |
-| `src/storage/`                        | `StorageDriver` interface + memory and Valkey/PG drivers (incl. fence token)             |
-| `src/runtime/`                        | `Runtime`, `ActorHost`, `Mailbox`, `ClassLoader`, reminder dispatcher                    |
-| `src/registry/`                       | Resolver, publisher, manifest tracker, `MemorySigningKeyRegistry`                        |
-| `src/policy/`                         | `policy()` evaluation, capability JWTs, `MemoryBlocklist`                                |
-| `src/limits/`                         | `RateLimiter` (token bucket), `CapacityExhaustedError`                                   |
-| `src/audit/`                          | `Auditor`, `AUDIT_ACTIONS`, strict/best-effort write modes                               |
-| `src/log/`                            | `Logger` surface (pino-backed, noop, collecting), redaction list                         |
-| `src/metrics/`                        | `MetricsRegistry` (prom-client) + cardinality guards                                     |
-| `src/wire/`                           | JSON-RPC envelope types shared between server + client                                   |
-| `src/codegen/`                        | `actctl codegen` — `.d.ts` + manifest emitter                                            |
-| `src/client/`                         | `@actjs/client` — WS transport, RPC, subscriptions, offline queue                        |
-| `src/bindings/`                       | `@actjs/react` + `@actjs/svelte` adapters; refcounted ActorStore                         |
-| `src/cli/`                            | `actctl` CLI                                                                             |
-| `src/test/`                           | `@actjs/test` — `TestRuntime`, assertions, `replayMigrations`                            |
-| `src/server/`                         | Fastify app, REST routes, WS endpoint, hooks (pin, idempotency, auth)                    |
-| `src/server/subscription-registry.ts` | Per-actor subscription fan-out for WS / SSE                                              |
-| `migrations/`                         | Postgres schema (`0001_init`, `0002_reminders`, `0003_signing_keys`, `0004_actor_fence`) |
-| `docs/`                               | Operator runbooks (auth, observability, ops-hardening, testing)                          |
-| `tasks/`                              | Per-phase implementation tasks + ADRs + [ROADMAP.md](./tasks/ROADMAP.md)                 |
-| `tests/`                              | Vitest unit + integration tests                                                          |
-| `Dockerfile`                          | Multi-stage build, distroless final stage                                                |
-| `docker-compose.yml`                  | Local stack: actjs + Valkey + Postgres                                                   |
+| Path                                  | Purpose                                                                                              |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `src/actor.ts`                        | `Actor<S>` base class (SWM)                                                                          |
+| `src/event-sourced.ts`                | `EventSourced<S, E>` base class                                                                      |
+| `src/replica.ts`                      | `Replica<S>` opt-out-of-persistence base class                                                       |
+| `src/handler.ts`                      | `@handler` decorator + `getHandlers`                                                                 |
+| `src/types/`                          | `ActorId`, `ClassName`, `Version`, `Manifest`, `Envelope<T>`, `Principal`                            |
+| `src/storage/`                        | `StorageDriver` interface + memory and Valkey/PG drivers (incl. fence token)                         |
+| `src/runtime/`                        | `Runtime`, `ActorHost`, `Mailbox`, `ClassLoader`, reminder dispatcher                                |
+| `src/registry/`                       | Resolver, publisher, manifest tracker, `MemorySigningKeyRegistry`                                    |
+| `src/policy/`                         | `policy()` evaluation, capability JWTs, `MemoryBlocklist`                                            |
+| `src/limits/`                         | `RateLimiter` (token bucket), `CapacityExhaustedError`                                               |
+| `src/audit/`                          | `Auditor`, `AUDIT_ACTIONS`, strict/best-effort write modes                                           |
+| `src/log/`                            | `Logger` surface (pino-backed, noop, collecting), redaction list                                     |
+| `src/metrics/`                        | `MetricsRegistry` (prom-client) + cardinality guards                                                 |
+| `src/wire/`                           | JSON-RPC envelope types shared between server + client                                               |
+| `src/codegen/`                        | `actctl codegen` — `.d.ts` + manifest emitter                                                        |
+| `src/client/`                         | `@jplevyak/actjs/client` — WS transport, RPC, subscriptions, offline queue                           |
+| `src/bindings/`                       | `@jplevyak/actjs/bindings/react` + `@jplevyak/actjs/bindings/svelte` adapters; refcounted ActorStore |
+| `src/cli/`                            | `actctl` CLI                                                                                         |
+| `src/test/`                           | `@jplevyak/actjs/test` — `TestRuntime`, assertions, `replayMigrations`                               |
+| `src/server/`                         | Fastify app, REST routes, WS endpoint, hooks (pin, idempotency, auth)                                |
+| `src/server/subscription-registry.ts` | Per-actor subscription fan-out for WS / SSE                                                          |
+| `migrations/`                         | Postgres schema (`0001_init`, `0002_reminders`, `0003_signing_keys`, `0004_actor_fence`)             |
+| `docs/`                               | Operator runbooks (auth, observability, ops-hardening, testing)                                      |
+| `tasks/`                              | Per-phase implementation tasks + ADRs + [ROADMAP.md](./tasks/ROADMAP.md)                             |
+| `tests/`                              | Vitest unit + integration tests                                                                      |
+| `Dockerfile`                          | Multi-stage build, distroless final stage                                                            |
+| `docker-compose.yml`                  | Local stack: actjs + Valkey + Postgres                                                               |
 
 ---
 

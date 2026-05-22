@@ -197,7 +197,7 @@ compose up`, and serves a "Hello, dungeon" HTTP endpoint.
 - **Goal:** drop the polling. The browser opens a WebSocket, calls
   `actor.subscribe(Room, id)`, and re-renders on each
   `actor.event` notification.
-- **Concepts:** `@actjs/client`, WS multiplexing, RFC 6902 patches
+- **Concepts:** `@jplevyak/actjs/client`, WS multiplexing, RFC 6902 patches
   (SWM), the initial-snapshot-then-patches contract.
 - **Deliverable:** moves render at tick rate, no polling. Two
   browser tabs see each other move in real time.
@@ -497,14 +497,14 @@ repeated here.
 These don't fit the pattern catalog — they're framework features
 worth a chapter on their own:
 
-- **X1 — Server-rendered hydration.** Use `@actjs/react/server`
+- **X1 — Server-rendered hydration.** Use `@jplevyak/actjs/bindings/react/server`
   and `fetchActor(Room, id, {manifest})` for SSR'd cold loads.
   About the SDK, not about actor design.
 
 - **X2 — Migrations in production.** Ship a v2 of the `Room`
   class with a renamed field; walk the reader through
   `actctl migrate dry-run` (when 8.2b ships) or
-  `replayMigrations` from `@actjs/test` today. About class-version
+  `replayMigrations` from `@jplevyak/actjs/test` today. About class-version
   lifecycle, not about actor design.
 
 - **X3 — Swap the renderer to Phaser (or PixiJS).** Replace the

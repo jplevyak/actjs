@@ -104,7 +104,7 @@ jobs:
       - run: npm ci
       - run: npm run build
       - name: Start actjs in background
-        run: node dist/main.js &
+        run: node dist/cli/start.js &
         env:
           PORT: '3000'
           REDIS_URL: 'redis://127.0.0.1:6379'

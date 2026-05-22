@@ -82,7 +82,7 @@ separate `class.signed` audit entry.
 ### Wiring
 
 ```ts
-import { MemorySigningKeyRegistry } from 'actjs/registry';
+import { MemorySigningKeyRegistry } from '@jplevyak/actjs/registry';
 
 const signingKeys = new MemorySigningKeyRegistry({ auditor: runtime.auditor });
 await signingKeys.add('release-key-2026', publicKeyPem);

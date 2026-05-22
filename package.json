@@ -1,7 +1,29 @@
 {
-  "name": "actjs",
+  "name": "@jplevyak/actjs",
   "version": "0.3.0",
-  "description": "A small JavaScript actor framework with optimistic-concurrency transactions backed by Redis.",
+  "description": "A self-hosted actor framework for TypeScript: SWM + event-sourced actors, durable snapshots, JSON-RPC over WebSocket, codegen-typed client SDK.",
+  "license": "Apache-2.0",
+  "author": "John Plevyak",
+  "homepage": "https://github.com/jplevyak/actjs#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jplevyak/actjs.git"
+  },
+  "bugs": {
+    "url": "https://github.com/jplevyak/actjs/issues"
+  },
+  "keywords": [
+    "actor",
+    "actor-model",
+    "actor-framework",
+    "websocket",
+    "json-rpc",
+    "real-time",
+    "event-sourcing",
+    "typescript",
+    "fastify",
+    "self-hosted"
+  ],
   "type": "module",
   "main": "dist/main.js",
   "exports": {
@@ -91,21 +113,28 @@
     }
   },
   "bin": {
-    "actctl": "./dist/cli/actctl.js"
+    "actctl": "./dist/cli/actctl.js",
+    "actjs-server": "./dist/cli/start.js"
   },
   "files": [
     "dist",
+    "migrations",
     "README.md",
-    "CHANGELOG.md"
+    "CHANGELOG.md",
+    "LICENSE"
   ],
   "engines": {
     "node": ">=20"
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsc -b tsconfig.build.json",
     "clean": "rm -rf dist *.tsbuildinfo coverage",
-    "dev": "tsx watch src/main.ts",
-    "start": "node dist/main.js",
+    "dev": "tsx watch src/cli/start.ts",
+    "start": "node dist/cli/start.js",
+    "prepublishOnly": "npm run clean && npm run typecheck && npm test && npm run build",
     "demo": "./demo.bash",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",

@@ -35,7 +35,7 @@ When the auth hook is omitted entirely, the principal is
 ## Wiring `auth`
 
 ```ts
-import { buildApp } from 'actjs/server/app.js';
+import { buildApp } from '@jplevyak/actjs/server/app.js';
 
 const app = await buildApp({
   driver,
@@ -202,7 +202,7 @@ Capabilities can outlive their usefulness. Pass a blocklist to
 `buildApp`:
 
 ```ts
-import { MemoryBlocklist } from 'actjs/policy';
+import { MemoryBlocklist } from '@jplevyak/actjs/policy';
 
 const blocklist = new MemoryBlocklist();
 const app = await buildApp({ /* ... */, capabilityBlocklist: blocklist });
@@ -236,7 +236,7 @@ specifics.
 ### `verifyJWT(options)`
 
 ```ts
-import { verifyJWT } from 'actjs/server/auth.js';
+import { verifyJWT } from '@jplevyak/actjs/server/auth.js';
 
 const app = await buildApp({
   // ...
@@ -268,7 +268,7 @@ Symmetric, useful for service-to-service traffic where both sides
 share a secret:
 
 ```ts
-import { verifyHmac } from 'actjs/server/auth.js';
+import { verifyHmac } from '@jplevyak/actjs/server/auth.js';
 
 const app = await buildApp({
   auth: verifyHmac(process.env.ACTJS_SERVICE_SECRET!),
@@ -292,7 +292,7 @@ and a nonce store if you need that.
 For dev and tests:
 
 ```ts
-import { staticToken } from 'actjs/server/auth.js';
+import { staticToken } from '@jplevyak/actjs/server/auth.js';
 
 const app = await buildApp({
   auth: staticToken({

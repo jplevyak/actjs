@@ -215,8 +215,8 @@ Edit `src/room.ts`. The state shape and handlers don't change;
 only `onInit`:
 
 ```ts
-import { Actor } from 'actjs/actor';
-import { handler } from 'actjs/handler';
+import { Actor } from '@jplevyak/actjs/actor';
+import { handler } from '@jplevyak/actjs/handler';
 
 import { drunkardsWalk } from './procgen.js';
 import { hashStringToSeed } from './rng.js';
@@ -500,7 +500,7 @@ results.
 actor is materialized through the runtime. If you're
 instantiating `Room` directly in a test (`new Room()`), you
 need to assign `actor_id` manually. The recommended path for
-that is `@actjs/test`'s `TestRuntime` (see `docs/testing.md`),
+that is `@jplevyak/actjs/test`'s `TestRuntime` (see `docs/testing.md`),
 which handles activation properly.
 
 **Server restart and the dungeon is different**

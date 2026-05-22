@@ -64,8 +64,8 @@ That's the entire shape. Everything else in this chapter is wiring.
 Make a new file `src/room.ts`:
 
 ```ts
-import { Actor } from 'actjs/actor';
-import { handler } from 'actjs/handler';
+import { Actor } from '@jplevyak/actjs/actor';
+import { handler } from '@jplevyak/actjs/handler';
 
 const WIDTH = 20;
 const HEIGHT = 20;
@@ -165,10 +165,10 @@ Open `src/server.ts` and add the `Room` registration. The full
 file now reads:
 
 ```ts
-import { Runtime } from 'actjs/runtime';
-import { buildApp } from 'actjs/server';
-import { MemoryStorageDriver } from 'actjs/storage';
-import { asClassName, asVersion } from 'actjs/types';
+import { Runtime } from '@jplevyak/actjs/runtime';
+import { buildApp } from '@jplevyak/actjs/server';
+import { MemoryStorageDriver } from '@jplevyak/actjs/storage';
+import { asClassName, asVersion } from '@jplevyak/actjs/types';
 
 import { Room } from './room.js';
 

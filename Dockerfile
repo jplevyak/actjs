@@ -32,4 +32,4 @@ COPY package.json ./
 
 USER nonroot
 EXPOSE 3000
-CMD ["dist/main.js"]
+CMD ["dist/cli/start.js"]
