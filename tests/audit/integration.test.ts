@@ -100,19 +100,4 @@ describe('audit emissions', () => {
     expect(tomb).toBeTruthy();
     expect(tomb!.target).toBe(`Counter:${id}`);
   });
-
-  it('records admin.rpc when /run is invoked', async () => {
-    // /run requires a Redis client to commit; without one the
-    // handler errors after audit. We only assert the audit emit
-    // happens (it runs before the connection).
-    await h.app.inject({
-      method: 'POST',
-      url: '/run',
-      headers: { 'x-actjs-admin': '1', 'content-type': 'text/plain' },
-      payload: 'return 42;',
-    });
-    const rpc = h.driver.auditEntries().find((e) => e.action === 'admin.rpc');
-    expect(rpc).toBeTruthy();
-    expect(rpc!.target).toBe('/run');
-  });
 });

@@ -81,50 +81,6 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  integration:
-    name: Integration (demo.bash)
-    runs-on: ubuntu-latest
-    needs: [build, docker]
-    services:
-      valkey:
-        image: valkey/valkey:8-alpine
-        ports:
-          - 6379:6379
-        options: >-
-          --health-cmd "valkey-cli ping"
-          --health-interval 2s
-          --health-timeout 2s
-          --health-retries 10
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version-file: .nvmrc
-          cache: npm
-      - run: npm ci
-      - run: npm run build
-      - name: Start actjs in background
-        run: node dist/cli/start.js &
-        env:
-          PORT: '3000'
-          REDIS_URL: 'redis://127.0.0.1:6379'
-          # demo.bash hits the legacy /run + /upload endpoints, which
-          # require the `admin` role since Phase 5.3. Enable the
-          # dev-admin shortcut so the X-Actjs-Admin: 1 header is
-          # accepted without standing up a real auth provider.
-          ACTJS_DEV_ADMIN_HEADER: '1'
-      - name: Wait for server
-        run: |
-          for i in $(seq 1 30); do
-            if curl -fsS http://127.0.0.1:3000/ >/dev/null; then
-              echo "actjs up"; exit 0
-            fi
-            sleep 1
-          done
-          echo "actjs did not start"; exit 1
-      - name: Run demo
-        run: AUTO=1 ./demo.bash
-
   storage-conformance:
     name: Storage conformance (valkey + postgres)
     runs-on: ubuntu-latest

@@ -45,7 +45,6 @@ const runtime = new Runtime(driver);
 const app = await buildApp({
   driver,
   runtime,
-  ...(REDIS_URL ? { redisUrl: REDIS_URL } : {}),
 });
 
 await app.listen({ host: '0.0.0.0', port: PORT });

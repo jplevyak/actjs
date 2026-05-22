@@ -177,18 +177,6 @@ describe('admin gating', () => {
     });
     expect(publish.statusCode).toBe(201);
   });
-
-  it('legacy /run requires admin', async () => {
-    bundle = await buildBundle();
-    // Anonymous → 403.
-    const anon = await bundle.app.inject({
-      method: 'POST',
-      url: '/run',
-      headers: { 'content-type': 'text/plain' },
-      payload: 'return 1;',
-    });
-    expect(anon.statusCode).toBe(403);
-  });
 });
 
 describe('built-in verifiers', () => {

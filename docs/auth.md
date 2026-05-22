@@ -67,8 +67,6 @@ Routes that mutate registry state require `roles: ['admin', ...]`:
 - `POST /v1/classes/:name/versions` — publish.
 - `PATCH /v1/classes/:name/versions/:v` — deprecate.
 - `GET /v1/admin/manifests/in-use` — admin telemetry.
-- `POST /v1/run`, `POST /v1/upload` — legacy scripting (will retire
-  with the Phase 1 shim).
 
 Authoring an admin role is your decision: actjs only checks for
 the string `'admin'`. Map your IdP groups / scopes to it however

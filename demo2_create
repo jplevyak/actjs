@@ -1,4 +1,0 @@
-let Beta = await gact.loadClass("Beta");
-let b = new Beta(gact, "demo2_b");
-b.b = 'b';
-return b.actor_id;

@@ -24,17 +24,17 @@ of strict propagation.
 
 ### Actions
 
-| Action                | Source                                         |
-| --------------------- | ---------------------------------------------- |
-| `class.published`     | `POST /v1/classes/:name/versions`              |
-| `class.deprecated`    | `PATCH /v1/classes/:name/versions/:version`    |
-| `class.signed`        | Same publish call when a signature is verified |
-| `actor.tombstoned`    | `DELETE /v1/actors/:class/:id`                 |
-| `actor.migrated`      | `ActorHost` snapshot migration                 |
-| `capability.minted`   | `actjs.mintCapability(...)` inside a handler   |
-| `signing-key.added`   | `POST /v1/admin/signing-keys/:kid`             |
-| `signing-key.revoked` | `DELETE /v1/admin/signing-keys/:kid`           |
-| `admin.rpc`           | Legacy `POST /run`                             |
+| Action                | Source                                                      |
+| --------------------- | ----------------------------------------------------------- |
+| `class.published`     | `POST /v1/classes/:name/versions`                           |
+| `class.deprecated`    | `PATCH /v1/classes/:name/versions/:version`                 |
+| `class.signed`        | Same publish call when a signature is verified              |
+| `actor.tombstoned`    | `DELETE /v1/actors/:class/:id`                              |
+| `actor.migrated`      | `ActorHost` snapshot migration                              |
+| `capability.minted`   | `actjs.mintCapability(...)` inside a handler                |
+| `signing-key.added`   | `POST /v1/admin/signing-keys/:kid`                          |
+| `signing-key.revoked` | `DELETE /v1/admin/signing-keys/:kid`                        |
+| `admin.rpc`           | Reserved for a future admin RPC route (no producer in v0.3) |
 
 Each entry has the shape:
 

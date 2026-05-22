@@ -56,7 +56,6 @@ import { registerActorRoutes } from './routes/actors.js';
 import { registerAdminRoutes } from './routes/admin.js';
 import { registerClassRoutes } from './routes/classes.js';
 import { registerHealthRoutes } from './routes/health.js';
-import { registerLegacyRoutes } from './routes/legacy.js';
 import { registerManifestRoutes } from './routes/manifest.js';
 import { registerMetricsRoute } from './routes/metrics.js';
 import { registerSseRoute } from './routes/sse.js';
@@ -80,7 +79,6 @@ export interface BuildAppOptions {
   readonly driver: StorageDriver;
   readonly runtime: Runtime;
   readonly tracker?: ManifestUsageTracker;
-  readonly redisUrl?: string;
   /** Override pin hook sampling for tests. */
   readonly pinOptions?: Partial<Omit<PinHookOptions, 'driver' | 'tracker'>>;
   /** Idempotency TTL in ms. Default 24h. */
@@ -202,14 +200,12 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
         { name: 'manifest' },
         { name: 'actors' },
         { name: 'admin' },
-        { name: 'legacy' },
       ],
     },
   });
 
   // Pin preHandler. It's a no-op when the request lacks the
   // X-Actjs-Manifest header, so attaching unconditionally is cheap.
-  // Legacy /run and /upload don't send the header in practice.
   const pinHookOpts: PinHookOptions = {
     driver: options.driver,
     tracker,
@@ -239,11 +235,6 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     ...(options.signingKeys ? { signingKeys: options.signingKeys } : {}),
   });
   registerActorRoutes(typedApp, options.driver, options.runtime);
-
-  await registerLegacyRoutes(app, {
-    ...(options.redisUrl !== undefined ? { redisUrl: options.redisUrl } : {}),
-    auditor,
-  });
 
   // WebSocket / JSON-RPC subscriptions.
   const registry = new SubscriptionRegistry(

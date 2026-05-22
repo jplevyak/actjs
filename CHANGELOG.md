@@ -6,6 +6,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed — GAct legacy shim sunset
+
+- **Deleted** `src/gact.ts`, `src/legacy/shim.ts`, `src/server/routes/legacy.ts`, and the `src/legacy/` directory. The pre-Phase-1 GAct API and the `POST /run` / `POST /upload` routes are gone. The actor framework (`Actor`, `EventSourced`, `Replica`, `@handler`, `Runtime`) is the sole supported surface.
+- **Removed** the `./legacy` subpath export from `package.json`, the `demo` npm script, `demo.bash` + its sibling demo payload files (`demo1_*`, `demo2_*`, `demo3_*`, `Beta.js`, `Gamma.js`).
+- **Removed** `BuildAppOptions.redisUrl` — it was only consumed by the legacy routes. The `ValkeyPgStorageDriver`'s own `redisUrl` option is unchanged.
+- **Removed** the CI "Integration (demo.bash)" job; the lint / typecheck / test / build / docker / storage-conformance jobs continue unchanged.
+- **Removed** `tests/gact.test.ts`, `tests/shim.test.ts`, and the `admin.rpc` / `legacy /run requires admin` assertions inside `tests/audit/integration.test.ts` and `tests/server/auth.test.ts`. The audit-action constant `AUDIT_ACTIONS.ADMIN_RPC` is kept as a placeholder for a future admin RPC route.
+- **Why now:** the shim existed for backward compat with a pre-actjs library that was never published to npm. Sunsetting before the first npm publish (`@jplevyak/actjs@0.3.0`) means no downstream breakage and the package never ships the legacy surface.
+
 ### Added — Phase 5.2 (WebSocket / JSON-RPC)
 
 - **`/v1/ws` endpoint** speaking JSON-RPC 2.0. Methods:

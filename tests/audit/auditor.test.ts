@@ -52,8 +52,8 @@ describe('Auditor', () => {
     const drv = fakeDriver();
     const auditor = new Auditor(drv as unknown as never);
     await auditor.record({
-      action: 'admin.rpc',
-      target: '/run',
+      action: 'class.published',
+      target: 'Note@1.0.0',
       principal: { sub: 'user-123', roles: ['admin'] },
     });
     expect((drv.entries[0] as { principal: string }).principal).toBe('user-123');

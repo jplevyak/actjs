@@ -1,6 +1,0 @@
-let Actor = gact.Actor;
-let c = new Actor(gact, "demo1_c");
-c.c = 'c';
-let d = c.d = new Actor(gact);
-d.d = 'd';
-return [c.actor_id, d.actor_id];

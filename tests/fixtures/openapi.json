@@ -2933,33 +2933,6 @@
         }
       }
     },
-    "/": {
-      "get": {
-        "responses": {
-          "200": {
-            "description": "Default Response"
-          }
-        }
-      }
-    },
-    "/run": {
-      "post": {
-        "responses": {
-          "200": {
-            "description": "Default Response"
-          }
-        }
-      }
-    },
-    "/upload": {
-      "post": {
-        "responses": {
-          "200": {
-            "description": "Default Response"
-          }
-        }
-      }
-    },
     "/v1/actors/{class}/{id}/events": {
       "get": {
         "summary": "Server-Sent Events stream of actor commits",
@@ -3101,9 +3074,6 @@
     },
     {
       "name": "admin"
-    },
-    {
-      "name": "legacy"
     }
   ]
 }
