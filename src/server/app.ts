@@ -48,6 +48,8 @@ declare module 'fastify' {
 }
 
 import { makeAuthHook, type AuthHook } from './auth.js';
+export type { AuthHook } from './auth.js';
+export { staticToken, verifyHmac, verifyJWT } from './auth.js';
 import { handleError } from './errors.js';
 import { makeIdempotencyHooks } from './hooks/idempotency.js';
 import { makePinHook, type PinHookOptions } from './hooks/pin.js';
