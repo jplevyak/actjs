@@ -50,7 +50,7 @@ class Room extends Actor<RoomState> {
   override onInit(): void {
     /* set this.state */
   }
-  @handler('something')
+  @handler()          // string arg is optional; defaults to the method name
   something(args: Args): Result {
     /* read + write this.state, return something */
   }
@@ -99,7 +99,7 @@ export class Room extends Actor<RoomState> {
    * page load, then switch to a WS subscription for live updates
    * in chapter 06.
    */
-  @handler('read')
+  @handler()
   read(): RoomState {
     return this.state;
   }
@@ -110,7 +110,7 @@ export class Room extends Actor<RoomState> {
    * but it's useful for sanity checks while we don't have a
    * renderer yet.
    */
-  @handler('tileAt')
+  @handler()
   tileAt(args: { x: number; y: number }): string {
     const row = this.state.tiles[args.y];
     if (!row || args.x < 0 || args.x >= this.state.width) {
@@ -148,10 +148,11 @@ A few specifics worth pausing on:
   and `onInit` does **not** run again. That's the
   frozen-after-generation invariant chapter 03 relies on for
   procgen.
-- **`@handler('read')`**. The string argument is the method name
-  the wire layer uses. By convention it matches the method name;
-  the decorator allows divergence (e.g. snake-case on the wire,
-  camel-case in TypeScript) but we won't need that.
+- **`@handler()`**. The string argument is optional — when omitted,
+  the decorator uses the method's declared name as the wire name.
+  Pass an explicit string only when you want the two to diverge
+  (e.g. `@handler('tile_at')` on a method named `tileAt`).
+  We don't need that here, so we leave the parens empty.
 - **`readonly` everywhere on `RoomState`**. actjs doesn't enforce
   immutability — but writing state as if it were immutable keeps
   the SWM contract honest: the only way state changes is through
@@ -427,9 +428,11 @@ You learned five things, in this order:
 2. **`onInit`** is the cold-start hook. It fires exactly once
    per actor lifetime. Subsequent activations (after server
    restarts, idle eviction, etc.) reuse the persisted snapshot.
-3. **`@handler('name')`** registers a method as wire-callable.
-   The mailbox guarantees serial execution — one handler turn
-   at a time per actor instance.
+3. **`@handler()`** registers a method as wire-callable. The string
+   argument is optional and defaults to the method name; pass one
+   only when you want the wire name to differ. The mailbox
+   guarantees serial execution — one handler turn at a time per
+   actor instance.
 4. **`runtime.register({name, version, ctor})`** is the one
    place you wire a class into the runtime. The HTTP layer
    does the rest.
