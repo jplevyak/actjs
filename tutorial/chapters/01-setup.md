@@ -54,6 +54,17 @@ mkdir dungeon && cd dungeon
 git init
 ```
 
+Create a `.gitignore` before installing anything:
+
+```bash
+cat > .gitignore << 'EOF'
+node_modules/
+dist/
+*.tsbuildinfo
+.env
+EOF
+```
+
 > **Why `git init` already?** The tutorial uses
 > `git tag ch01-done` at the end of every chapter so you can jump
 > ahead with `git checkout ch07-done` later. Starting the git

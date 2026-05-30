@@ -34,6 +34,7 @@ export class Directory {
     private readonly activeActorCapPerClass: number = 0,
     private readonly metrics: MetricsRegistry | null = null,
     private readonly nowMs: (() => number) | null = null,
+    private readonly onReminderScheduled: (() => void) | null = null,
   ) {
     // Arrow methods capture `this` lexically — no `const dir = this` alias.
     this.outbound = {
@@ -58,6 +59,7 @@ export class Directory {
           type,
           payload,
         });
+        this.onReminderScheduled?.();
       },
     };
   }

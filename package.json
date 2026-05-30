@@ -1,6 +1,6 @@
 {
   "name": "@jplevyak/actjs",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "A self-hosted actor framework for TypeScript: SWM + event-sourced actors, durable snapshots, JSON-RPC over WebSocket, codegen-typed client SDK.",
   "license": "Apache-2.0",
   "author": "John Plevyak",
@@ -135,6 +135,7 @@
     "dev": "tsx watch src/cli/start.ts",
     "start": "node dist/cli/start.js",
     "prepublishOnly": "npm run clean && npm run typecheck && npm test && npm run build",
+    "publish:npm": "npm publish",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",

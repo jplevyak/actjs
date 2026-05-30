@@ -50,7 +50,7 @@ class Room extends Actor<RoomState> {
   override onInit(): void {
     /* set this.state */
   }
-  @handler()          // string arg is optional; defaults to the method name
+  @handler() // string arg is optional; defaults to the method name
   something(args: Args): Result {
     /* read + write this.state, return something */
   }
@@ -169,7 +169,6 @@ file now reads:
 import { Runtime } from '@jplevyak/actjs/runtime';
 import { buildApp } from '@jplevyak/actjs/server';
 import { MemoryStorageDriver } from '@jplevyak/actjs/storage';
-import { asClassName, asVersion } from '@jplevyak/actjs/types';
 
 import { Room } from './room.js';
 
@@ -181,8 +180,8 @@ const runtime = new Runtime(driver);
 // Register the Room class with the runtime. After this line, the
 // HTTP server exposes /v1/actors/Room and friends.
 runtime.register({
-  name: asClassName('Room'),
-  version: asVersion('1.0.0'),
+  name: 'Room',
+  version: '1.0.0',
   ctor: Room,
 });
 
@@ -211,17 +210,18 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const) {
 
 The new pieces:
 
-- **`asClassName`, `asVersion`** are branded-type constructors.
-  actjs's domain types (`ClassName`, `Version`, `ActorId`) are
-  branded strings — you can't pass a raw `string` where a
-  `ClassName` is expected. This catches a class of bugs
-  ("oops, I passed a Version where a ClassName goes") at compile
-  time.
 - **`runtime.register(...)`** registers exactly one class at one
   version. You can register multiple classes (we will in ch 07
   for `Player`), and the same class at multiple versions
   (chapter 03 stays at `1.0.0`; later chapters might bump). For
   now, one `Room` at `1.0.0` is everything we need.
+- **Why `name` is explicit rather than derived from `ctor.name`.**
+  Bundlers mangle class names during minification — `Room` becomes
+  `a` or `r` in a production build, so `ctor.name` is unreliable.
+  More importantly, `name` is the durable key under which all
+  snapshots are stored; it has to be a stable, intentional string,
+  not something that silently changes when you rename a class or
+  re-bundle.
 
 ## Run it
 

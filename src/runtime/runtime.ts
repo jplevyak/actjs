@@ -141,6 +141,7 @@ export class Runtime {
       this.activeActorCapPerClass,
       options.metrics ?? null,
       options.nowMs ?? null,
+      () => this.reminderDispatcher.start(),
     );
     this.reminderDispatcher = new ReminderDispatcher(
       driver,
